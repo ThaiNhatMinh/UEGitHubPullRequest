@@ -60,7 +60,9 @@ public:
     void Construct(const FArguments& InArgs, const TSharedRef<STableViewBase>& InOwnerTableView, TSharedPtr<FPullRequestItem> InItem);
 
     virtual TSharedRef<SWidget> GenerateWidgetForColumn(const FName& ColumnName) override;
+    const FSlateBrush* GetAvatar() const;
 
 private:
     TSharedPtr<FPullRequestItem> Item;
+    TSharedPtr<struct FSlateDynamicImageBrush> Avatar;
 };

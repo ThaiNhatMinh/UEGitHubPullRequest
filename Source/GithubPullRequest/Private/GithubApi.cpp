@@ -220,3 +220,46 @@ bool UGithubApi::DownloadFile(FOnFileDownloadComplete OnFileDownloadComplete, co
 	Request->ProcessRequest();
 	return true;
 }
+
+bool UGithubApi::DownloadAvatar(FOnFileDownloadComplete OnFileDownloadComplete, const FString& Url, const FString& FileName)
+{
+	auto TargetDir = FPaths::ProjectSavedDir() + "Github/Avatar/";
+	const FString TempFileName = TargetDir + FileName;
+	IFileManager::Get().MakeDirectory(*TargetDir, true);
+	if (FPaths::FileExists(TempFileName))
+	{
+		OnFileDownloadComplete.ExecuteIfBound(TempFileName, 200, TEXT(""));
+		return true;
+	}
+
+	FHttpModule* Http = &FHttpModule::Get();
+	FHttpRequestRef Request = Http->CreateRequest();
+	Request->SetURL(Url);
+	Request->SetVerb(TEXT("GET"));
+	Request->SetHeader(TEXT("User-Agent"), TEXT("X-UnrealEngine-Agent"));
+	Request->SetHeader(TEXT("Accepts"), TEXT("application/vnd.github.raw"));
+	Request->OnProcessRequestComplete().BindLambda([OnFileDownloadComplete, FileName, TempFileName](FHttpRequestPtr InRequest, FHttpResponsePtr InResponse, bool bConnectedSuccessfully)
+		{
+			if (!InResponse.IsValid())
+			{
+				OnFileDownloadComplete.ExecuteIfBound("", 404, TEXT("Response is not valid"));
+				return;
+			}
+			int Code = InResponse->GetResponseCode();
+			if (Code != 200)
+			{
+				OnFileDownloadComplete.ExecuteIfBound("", Code, InResponse->GetContentAsString());
+				return;
+			}
+			if (FFileHelper::SaveArrayToFile(InResponse->GetContent(), *TempFileName))
+			{
+				OnFileDownloadComplete.ExecuteIfBound(TempFileName, Code, InResponse->GetContentAsString());
+			}
+			else
+			{
+				OnFileDownloadComplete.ExecuteIfBound("", 1, "Save file failed");
+			}
+		});
+	Request->ProcessRequest();
+	return true;
+}
