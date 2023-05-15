@@ -140,4 +140,5 @@ public:
 	static bool GetPullRequests(FOnPullRequestListAvailable OnPullRequestListAvailable);
 	static bool GetFilesInPullRequest(int PullNumber, FOnFilesListAvailable OnFilesListAvailable);
 	static bool DownloadFile(FOnFileDownloadComplete OnFileDownloadComplete, const FString& FilePath, const FString& Sha = "");
+	static bool DownloadAvatar(FOnFileDownloadComplete OnFileDownloadComplete, const FString& Url, const FString& FileName);
 };

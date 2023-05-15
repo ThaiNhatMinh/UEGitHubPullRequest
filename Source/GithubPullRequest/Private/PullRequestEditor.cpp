@@ -4,6 +4,7 @@
 #include "Widgets/Images/SImage.h"
 #include "Widgets/Layout/SSpacer.h"
 #include "Widgets/Input/SSearchBox.h"
+#include "Brushes/SlateDynamicImageBrush.h"
 #include "GithubApi.h"
 
 #include "IAssetTools.h"
@@ -155,23 +156,23 @@ TSharedRef<ITableRow> SPullRequestsEditor::GenerateFileRowWidget(TSharedPtr<FFil
 		[
 			SNew(SBox)
 			.Padding(8)
-		[
-			SNew(SHorizontalBox)
-			+ SHorizontalBox::Slot()
-		.Padding(0, 0, 4, 0)
-		.AutoWidth()
-		[
-			SNew(SImage)
-			.Image(IconSamples)
-		]
-	+ SHorizontalBox::Slot()
-		.FillWidth(1.0f)
-		[
-			SNew(STextBlock)
-			.Text(FText::FromString(InItem->Info.filename))
-		.Font(Font)
-		]
-		]
+		    [
+			    SNew(SHorizontalBox)
+			    + SHorizontalBox::Slot()
+		        .Padding(0, 0, 4, 0)
+		        .AutoWidth()
+		        [
+			        SNew(SImage)
+			        .Image(IconSamples)
+		        ]
+	            + SHorizontalBox::Slot()
+		        .FillWidth(1.0f)
+		        [
+			        SNew(STextBlock)
+			        .Text(FText::FromString(InItem->Info.filename))
+		            .Font(Font)
+		        ]
+		    ]
 		];
 }
 
@@ -289,12 +290,18 @@ void SPullRequestsEditor::OnFilterTextCommitted(const FText& InFilterText, EText
 void SPullRequestRow::Construct(const FArguments& InArgs, const TSharedRef<STableViewBase>& InOwnerTableView, TSharedPtr<FPullRequestItem> InItem)
 {
     Item = InItem;
+    UGithubApi::DownloadAvatar(FOnFileDownloadComplete::CreateLambda([this](const FString& GamePath, int Code, const FString& InContent)
+        {
+            if (GamePath.IsEmpty())
+                return;
+            Avatar = MakeShared<FSlateDynamicImageBrush>(FSlateDynamicImageBrush(FName(GamePath), FVector2D(16, 16)));
+        }),
+        Item->Info.user.avatar_url, Item->Info.user.id + ".png");
     SMultiColumnTableRow<TSharedPtr<FPullRequestItem>>::Construct(FSuperRowType::FArguments(), InOwnerTableView);
 }
 
 TSharedRef<SWidget> SPullRequestRow::GenerateWidgetForColumn(const FName& ColumnName)
 {
-
     static const FSlateFontInfo Font = FCoreStyle::GetDefaultFontStyle("Regular", 12);
 
     const FSlateBrush* IconSamples = FEditorStyle::GetBrush(TEXT("Graph.StateNode.Icon"));
@@ -323,12 +330,29 @@ TSharedRef<SWidget> SPullRequestRow::GenerateWidgetForColumn(const FName& Column
     else if (ColumnName == "Author")
     {
         return SNew(SBox)
-            .Padding(8)
-            [
-                SNew(STextBlock)
-                .Text(FText::FromString(Item->Info.user.login))
-                .Font(Font)
-            ];
+                .Padding(8)
+                [
+                    SNew(SHorizontalBox)
+                    +SHorizontalBox::Slot()
+                    .Padding(0, 0, 4, 0)
+                    .AutoWidth()
+                    [
+                        SNew(SImage)
+                        .Image(this, &SPullRequestRow::GetAvatar)
+                    ]
+                    + SHorizontalBox::Slot()
+                    .FillWidth(1.0f)
+                    [
+                        SNew(STextBlock)
+                        .Text(FText::FromString(Item->Info.user.login))
+                        .Font(Font)
+                    ]
+                ];
     }
     return SNullWidget::NullWidget;
+}
+
+const FSlateBrush* SPullRequestRow::GetAvatar() const
+{
+    return Avatar.Get();
 }
