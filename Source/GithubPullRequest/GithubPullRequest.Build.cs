@@ -36,6 +36,7 @@ public class GithubPullRequest : ModuleRules
 				"SlateCore",
 				"InputCore",
                 "Projects",
+                "SourceControl",
                 "EditorStyle",
                 "SubsystemBrowser"
 				// ... add other public dependencies that you statically link with here ...

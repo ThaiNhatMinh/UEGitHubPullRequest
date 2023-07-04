@@ -34,22 +34,15 @@ FString UGithubApi::GetBaseUrl()
 		{ Settings->GithubUrl, FStringFormatArg(Path)});
 }
 
-void UGithubApi::BuildPullRequest()
+bool UGithubApi::GetPullRequests(FOnPullRequestListAvailable OnPullRequestListAvailable, EPullRequestQueryState state, int Page, int NumberPage)
 {
-	GetPullRequests(FOnPullRequestListAvailable::CreateLambda([](const TArray<FPullRequestInformation>& ListPullRequest, int Code, const FString& Content)
-	{
-			int a = 0;
-		}));
-	int a = 0;
-}
-
-bool UGithubApi::GetPullRequests(FOnPullRequestListAvailable OnPullRequestListAvailable)
-{
+	auto State = UEnum::GetDisplayValueAsText(state).ToString();
 	auto Settings = GetDefault<UGithubPullRequestSettings>();
 	FHttpModule* Http = &FHttpModule::Get();
 	FHttpRequestRef Request = Http->CreateRequest();
 	auto BaseUrl = GetBaseUrl();
-	Request->SetURL(BaseUrl + "/pulls");
+	auto Url = FString::Format(TEXT("{0}/pulls?per_page={1}&page={2}&state={3}"), {BaseUrl, NumberPage, Page, State});
+	Request->SetURL(Url);
 	Request->SetHeader(TEXT("Authorization"), FString::Printf(TEXT("Bearer %s"), *Settings->GithubToken));
 	Request->SetHeader(TEXT("Content-Type"), TEXT("application/json"));
 	Request->SetHeader(TEXT("User-Agent"), TEXT("X-UnrealEngine-Agent"));
@@ -88,13 +81,13 @@ bool UGithubApi::GetPullRequests(FOnPullRequestListAvailable OnPullRequestListAv
 	return true;
 }
 
-bool UGithubApi::GetFilesInPullRequest(int PullNumber, FOnFilesListAvailable OnFilesListAvailable)
+bool UGithubApi::GetFilesInPullRequest(int PullNumber, FOnFilesListAvailable OnFilesListAvailable, int NumFile, int Page)
 {
 	auto Settings = GetDefault<UGithubPullRequestSettings>();
 	FHttpModule* Http = &FHttpModule::Get();
 	FHttpRequestRef Request = Http->CreateRequest();
 	auto BaseUrl = GetBaseUrl();
-	auto Url = FString::Format(TEXT("{0}/pulls/{1}/files"), {BaseUrl, PullNumber});
+	auto Url = FString::Format(TEXT("{0}/pulls/{1}/files?per_page={2}&page={3}"), {BaseUrl, PullNumber, NumFile, Page});
 	Request->SetURL(Url);
 	Request->SetHeader(TEXT("Authorization"), FString::Printf(TEXT("Bearer %s"), *Settings->GithubToken));
 	Request->SetHeader(TEXT("Content-Type"), TEXT("application/json"));

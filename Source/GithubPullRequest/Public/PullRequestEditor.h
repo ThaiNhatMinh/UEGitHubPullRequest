@@ -27,6 +27,9 @@ struct FOpenDiffAssetStatusEffect
 
 class SPullRequestsEditor : public SCompoundWidget
 {
+public:
+    SPullRequestsEditor();
+
     SLATE_BEGIN_ARGS(SPullRequestsEditor)
     {}
     SLATE_END_ARGS()
@@ -41,13 +44,19 @@ class SPullRequestsEditor : public SCompoundWidget
     void RefreshPullRequest();
     void CleanCache();
     void OnFilterTextCommitted(const FText& InFilterText, ETextCommit::Type InCommitType);
+    void OnStateChanged(FName InItem, ESelectInfo::Type InSeletionInfo);
+    FText GetSelectedStateAsText() const;
+
 private:
     TSharedPtr<SWidget> Toolbar;
     TSharedPtr<SListView<TSharedPtr<FPullRequestItem>>> Widget;
     TSharedPtr<SListView<TSharedPtr<FFileItem>>> ListFileWidget;
     TArray<TSharedPtr<FPullRequestItem>> PullRequestItems;
     TArray<TSharedPtr<FFileItem>> ListFileItems;
+    TArray<FName> QueryOptions;
     FOpenDiffAssetStatusEffect OpenDiffStatus;
+
+    FName QueryState = "Open";
 };
 
 
