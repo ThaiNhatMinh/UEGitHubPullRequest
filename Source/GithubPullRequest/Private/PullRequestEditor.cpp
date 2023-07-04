@@ -5,12 +5,23 @@
 #include "Widgets/Layout/SSpacer.h"
 #include "Widgets/Input/SSearchBox.h"
 #include "Brushes/SlateDynamicImageBrush.h"
+#include "Widgets/Input/SComboBox.h"
 #include "GithubApi.h"
 
 #include "IAssetTools.h"
 #include "AssetToolsModule.h"
 
 #define LOCTEXT_NAMESPACE "SPullRequestsEditor"
+
+SPullRequestsEditor::SPullRequestsEditor()
+{
+    for (EPullRequestQueryState State : TEnumRange<EPullRequestQueryState>())
+    {
+        auto ParamName = UEnum::GetValueAsString((EPullRequestQueryState)State);
+        ParamName.Split("::", nullptr, &ParamName);
+        QueryOptions.Add(FName(*ParamName));
+    }
+}
 
 void SPullRequestsEditor::Construct(const FArguments& InArgs)
 {
@@ -80,7 +91,38 @@ void SPullRequestsEditor::Construct(const FArguments& InArgs)
                 [
                     SNew(SScrollBox)
                     + SScrollBox::Slot()
-                    .VAlign(VAlign_Top)
+                    [
+                        SNew(SHorizontalBox)
+                        +SHorizontalBox::Slot()
+                        [
+                            SNew(SComboBox<FName>)
+                            .OptionsSource(&QueryOptions)
+                            .OnSelectionChanged(this, &SPullRequestsEditor::OnStateChanged)
+                            .OnGenerateWidget_Lambda([](FName State)
+                                {
+                                    return SNew(STextBlock).Text(FText::FromName(State));
+                                })
+                            .Content()
+                            [
+                                SNew(STextBlock).Text(this, &SPullRequestsEditor::GetSelectedStateAsText)
+                            ]
+                        ]
+                        +SHorizontalBox::Slot()
+                        [
+                            SNew(SComboBox<FName>)
+                            .OptionsSource(&QueryOptions)
+                            .OnSelectionChanged(this, &SPullRequestsEditor::OnStateChanged)
+                            .OnGenerateWidget_Lambda([](FName State)
+                                {
+                                    return SNew(STextBlock).Text(FText::FromName(State));
+                                })
+                            .Content()
+                            [
+                                SNew(STextBlock).Text(this, &SPullRequestsEditor::GetSelectedStateAsText)
+                            ]
+                        ]
+                    ]
+                    + SScrollBox::Slot()
                     [
 					    SAssignNew(Widget, SListView<TSharedPtr<FPullRequestItem>>)
 					    .ListItemsSource(&PullRequestItems)
@@ -178,20 +220,26 @@ TSharedRef<ITableRow> SPullRequestsEditor::GenerateFileRowWidget(TSharedPtr<FFil
 
 void SPullRequestsEditor::OnMarkerListDoubleClicked(TSharedPtr<FPullRequestItem> Entry)
 {
-    UGithubApi::GetFilesInPullRequest(Entry->Info.number, FOnFilesListAvailable::CreateLambda([this, Entry](const TArray<FFileChangeInformation>& Files, int Code, const FString& Content)
+    int Page = 1;
+    ListFileItems.Empty();
+    FOnFilesListAvailable UpdateListFile;
+    UpdateListFile = FOnFilesListAvailable::CreateLambda([this, Entry, Page, UpdateListFile](const TArray<FFileChangeInformation>& Files, int Code, const FString& Content)
     {
-            if (Files.IsEmpty())
-                return;
-            ListFileItems.Empty();
-            for (auto& Item : Files)
-            {
-                auto ListItem = MakeShared<FFileItem>();
-                ListItem->Info = Item;
-                ListItem->PRInfo = Entry;
-                ListFileItems.Add(ListItem);
-            }
-            ListFileWidget->RequestListRefresh();
-    }));
+        if (Files.IsEmpty())
+            return;
+        for (auto& Item : Files)
+        {
+            auto ListItem = MakeShared<FFileItem>();
+            ListItem->Info = Item;
+            ListItem->PRInfo = Entry;
+            ListFileItems.Add(ListItem);
+        }
+        ListFileWidget->RequestListRefresh();
+        UGithubApi::GetFilesInPullRequest(Entry->Info.number, UpdateListFile, 300, Page + 1);
+
+    });
+
+    UGithubApi::GetFilesInPullRequest(Entry->Info.number, UpdateListFile);
 }
 
 void SPullRequestsEditor::OnFileDoubleClicked(TSharedPtr<FFileItem> Entry)
@@ -264,19 +312,27 @@ void SPullRequestsEditor::OpenDiff()
 
 void SPullRequestsEditor::RefreshPullRequest()
 {
-	UGithubApi::GetPullRequests(FOnPullRequestListAvailable::CreateLambda([this](const TArray<FPullRequestInformation>& ListPullRequest, int Code, const FString& Content)
-		{
-			if (ListPullRequest.IsEmpty())
-				return;
-			PullRequestItems.Empty();
-			for (auto& Item : ListPullRequest)
-			{
-				auto ListItem = MakeShared<FPullRequestItem>();
-				ListItem->Info = Item;
-				PullRequestItems.Add(ListItem);
-			}
-			Widget->RequestListRefresh();
-		}));
+    auto EnumObject = FindObject<UEnum>(ANY_PACKAGE, TEXT("EPullRequestQueryState"), true);
+    auto State = (EPullRequestQueryState)EnumObject->GetValueByName(QueryState);
+
+    FOnPullRequestListAvailable Delegate;
+    PullRequestItems.Empty();
+    int Page = 1;
+    Delegate = FOnPullRequestListAvailable::CreateLambda([this, Delegate, State, Page](const TArray<FPullRequestInformation>& ListPullRequest, int Code, const FString& Content)
+    {
+        if (ListPullRequest.IsEmpty())
+            return;
+        for (auto& Item : ListPullRequest)
+        {
+            auto ListItem = MakeShared<FPullRequestItem>();
+            ListItem->Info = Item;
+            PullRequestItems.Add(ListItem);
+        }
+        UGithubApi::GetPullRequests(Delegate, State, Page + 1);
+        Widget->RequestListRefresh();
+    });
+
+	UGithubApi::GetPullRequests(Delegate, State, Page);
 }
 
 void SPullRequestsEditor::CleanCache()
@@ -285,6 +341,16 @@ void SPullRequestsEditor::CleanCache()
 
 void SPullRequestsEditor::OnFilterTextCommitted(const FText& InFilterText, ETextCommit::Type InCommitType)
 {
+}
+
+void SPullRequestsEditor::OnStateChanged(FName InItem, ESelectInfo::Type InSeletionInfo)
+{
+    QueryState = InItem;
+}
+
+FText SPullRequestsEditor::GetSelectedStateAsText() const
+{
+    return FText::FromName(QueryState);
 }
 
 void SPullRequestRow::Construct(const FArguments& InArgs, const TSharedRef<STableViewBase>& InOwnerTableView, TSharedPtr<FPullRequestItem> InItem)

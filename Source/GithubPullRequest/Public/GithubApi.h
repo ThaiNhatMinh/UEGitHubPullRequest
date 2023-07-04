@@ -8,6 +8,39 @@
 #include "Kismet/BlueprintFunctionLibrary.h"
 #include "GithubApi.generated.h"
 
+UENUM()
+enum class EPullRequestQueryState : uint8
+{
+	Open UMETA(DisplayName="open"),
+	Closed UMETA(DisplayName="closed"),
+	All UMETA(DisplayName="all"),
+};
+ENUM_RANGE_BY_FIRST_AND_LAST(EPullRequestQueryState, EPullRequestQueryState::Open, EPullRequestQueryState::All);
+
+
+struct FPullRequestQueryParameter
+{
+	/**
+	 * @brief Either open, closed, or all to filter by state.
+		Default: open
+		Can be one of: open, closed, all
+	*/
+	EPullRequestQueryState State = EPullRequestQueryState::Open;
+	/**
+	 * @brief Filter pulls by head user or head organization and branch name in the format of user:ref-name or organization:ref-name.
+	 * For example: github:new-script-format or octocat:test-branch.
+	*/
+	FString head;
+	/**
+	 * @brief Filter pulls by base branch name. Example: gh-pages.
+	*/
+	FString base;
+	FString sort;
+	FString Direction;
+	int32 NumberOfResult = 30;
+	int32 Page = 1;
+};
+
 USTRUCT()
 struct FContentInfo
 {
@@ -137,8 +170,8 @@ public:
 	UFUNCTION(BlueprintCallable)
 	static void BuildPullRequest();
 
-	static bool GetPullRequests(FOnPullRequestListAvailable OnPullRequestListAvailable);
-	static bool GetFilesInPullRequest(int PullNumber, FOnFilesListAvailable OnFilesListAvailable);
+	static bool GetPullRequests(FOnPullRequestListAvailable OnPullRequestListAvailable, EPullRequestQueryState state = EPullRequestQueryState::Open, int Page = 1, int NumberPage = 100);
+	static bool GetFilesInPullRequest(int PullNumber, FOnFilesListAvailable OnFilesListAvailable, int NumFile = 300, int Page = 1);
 	static bool DownloadFile(FOnFileDownloadComplete OnFileDownloadComplete, const FString& FilePath, const FString& Sha = "");
 	static bool DownloadAvatar(FOnFileDownloadComplete OnFileDownloadComplete, const FString& Url, const FString& FileName);
 };
