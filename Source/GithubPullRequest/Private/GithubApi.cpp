@@ -18,11 +18,23 @@ FString UGithubApi::GetBaseUrl()
 	TArray<FString> OutArray;
 	SourceControlProvider.GetStatusText().ToString().ParseIntoArray(OutArray, TEXT("\n"));
 	FString RemoteUrl;
+
+	FString RemoteStr = "Remote: ";
+	FString RemoteOriginStr = "Remote Origin: ";
+
 	for (auto& Text : OutArray)
 	{
-		if (!Text.Contains("Remote: "))
+		if (!Text.Contains(RemoteStr) && !Text.Contains(RemoteOriginStr))
 			continue;
-		RemoteUrl = Text.RightChop(FString("Remote: ").Len());
+
+		if (Text.Contains(RemoteStr))
+		{
+			RemoteUrl = Text.RightChop(RemoteStr.Len());
+		}
+		else if (Text.Contains(RemoteOriginStr))
+		{
+			RemoteUrl = Text.RightChop(RemoteOriginStr.Len());
+		}
 		break;
 	}
 	auto Path = FGenericPlatformHttp::GetUrlPath(RemoteUrl);
