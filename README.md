@@ -3,7 +3,7 @@ Unreal Plugin view pull request
 
 # Setup
 
-- Clone project to project's Plugins directory and rebuild project and launch Unreal Editor.
+- Clone project to project's Plugins directory and rebuild project and launch Unreal Editor and enable `Source Control` with Git.
 - Setup Personal access tokens (classic) for your Github account:
   ![image](https://github.com/ThaiNhatMinh/GitHubPullRequest/assets/9197120/37aeacaf-a093-4281-abb6-66eabcbae079)
 
