@@ -1,5 +1,3 @@
-// Copyright Ather Labs, Inc. All Rights Reserved.
-
 
 #include "GithubApi.h"
 #include "GithubPRDeveloperSettings.h"
@@ -30,7 +28,7 @@ FString UGithubApi::GetBaseUrl()
 	auto Path = FGenericPlatformHttp::GetUrlPath(RemoteUrl);
 	Path = Path.LeftChop(4);
 	return FString::Format(
-		TEXT("{0}repos{1}"), 
+		TEXT("{0}repos{1}"),
 		{ Settings->GithubUrl, FStringFormatArg(Path)});
 }
 

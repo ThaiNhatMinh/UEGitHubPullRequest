@@ -1,5 +1,3 @@
-// Copyright Ather Labs, Inc. All Rights Reserved.
-
 #pragma once
 
 #include "CoreMinimal.h"
@@ -92,7 +90,7 @@ USTRUCT()
 struct FPullRequestRefInfo
 {
 	GENERATED_BODY();
-	
+
 	UPROPERTY()
 	FString label;
 	UPROPERTY()
@@ -116,7 +114,7 @@ struct FPullRequestInformation
 	FString id;
 	UPROPERTY()
 	FString html_url;
-	
+
 	UPROPERTY()
 	int number;
 	UPROPERTY()
@@ -159,7 +157,7 @@ DECLARE_DELEGATE_ThreeParams(FOnFilesListAvailable, const TArray<FFileChangeInfo
 DECLARE_DELEGATE_ThreeParams(FOnFileDownloadComplete, const FString& GamePath, int Code, const FString& Content);
 
 /**
- * 
+ *
  */
 UCLASS(Config=Editor)
 class GITHUBPULLREQUEST_API UGithubApi : public UBlueprintFunctionLibrary
@@ -167,8 +165,6 @@ class GITHUBPULLREQUEST_API UGithubApi : public UBlueprintFunctionLibrary
 	GENERATED_BODY()
 public:
 	static FString GetBaseUrl();
-	UFUNCTION(BlueprintCallable)
-	static void BuildPullRequest();
 
 	static bool GetPullRequests(FOnPullRequestListAvailable OnPullRequestListAvailable, EPullRequestQueryState state = EPullRequestQueryState::Open, int Page = 1, int NumberPage = 100);
 	static bool GetFilesInPullRequest(int PullNumber, FOnFilesListAvailable OnFilesListAvailable, int NumFile = 300, int Page = 1);
