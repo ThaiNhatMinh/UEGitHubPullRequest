@@ -1,5 +1,3 @@
-// Copyright Ather Labs, Inc. All Rights Reserved.
-
 #pragma once
 
 #include "CoreMinimal.h"
@@ -8,7 +6,7 @@
 #include "GithubPRDeveloperSettings.generated.h"
 
 /**
- * 
+ *
  */
 UCLASS(config=EditorPerProjectUserSettings, defaultconfig)
 class GITHUBPULLREQUEST_API UGithubPullRequestSettings : public UDeveloperSettings

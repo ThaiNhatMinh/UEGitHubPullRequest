@@ -5,7 +5,6 @@
 #include "Widgets/Docking/SDockTab.h"
 #include "WorkspaceMenuStructure.h"
 #include "WorkspaceMenuStructureModule.h"
-#include "SubsystemBrowserStyle.h"
 
 static const FName PanelIconName(TEXT("LevelEditor.GameSettings.Small"));
 
