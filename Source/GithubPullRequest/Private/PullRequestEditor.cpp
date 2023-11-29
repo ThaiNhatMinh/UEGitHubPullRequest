@@ -13,6 +13,284 @@
 
 #define LOCTEXT_NAMESPACE "SPullRequestsEditor"
 
+static const FName GithubPR_ListFile_TabId = FName(TEXT("GithubPR_Listfiles_TabId"));
+static const FName GithubPR_Description_TabId = FName(TEXT("GithubPR_Description_TabId"));
+static const FName GithubPR_List_TabId = FName(TEXT("GithubPR_List_TabId"));
+
+
+void SPullRequestEditor::Construct(const FArguments& InArgs, const TSharedRef<SDockTab>& ConstructUnderMajorTab)
+{
+    PullRequestData = InArgs._PullRequestId;
+
+    FToolBarBuilder ToolBarBuilder(TSharedPtr< const FUICommandList >(), FMultiBoxCustomization::None);
+    ToolBarBuilder.AddToolBarButton(
+        FUIAction(
+            FExecuteAction::CreateSP(this, &SPullRequestEditor::ReviewChanges)
+        )
+        , NAME_None
+        , LOCTEXT("SPullRequestsEditor", "Review changes")
+        , LOCTEXT("SPullRequestsEditor", "Refresh pull request list")
+        , FSlateIcon(FEditorStyle::GetStyleSetName(), "Icons.Refresh")
+    );
+    // Set up a tab view so we can split the content into different views
+    TabManager = FGlobalTabmanager::Get()->NewTabManager(ConstructUnderMajorTab);
+
+    TabManager->RegisterTabSpawner(GithubPR_ListFile_TabId,
+        FOnSpawnTab::CreateRaw(this, &SPullRequestEditor::CreateListfilesTab))
+        .SetDisplayName(LOCTEXT("SPullRequestsEditor", "Files"));
+
+    TabManager->RegisterTabSpawner(GithubPR_Description_TabId,
+        FOnSpawnTab::CreateRaw(this, &SPullRequestEditor::CreateDescriptionTab))
+        .SetDisplayName(LOCTEXT("SPullRequestsEditor", "Description"));
+
+    // Create a default layout for the tab manager, this allows us to open the tabs by default
+    const TSharedRef<FTabManager::FLayout> DefaultLayout = FTabManager::NewLayout("GithubPR_Layout")
+        ->AddArea(
+            FTabManager::NewPrimaryArea()
+            ->SetOrientation(Orient_Horizontal)
+            ->Split
+            (
+                FTabManager::NewStack()
+                ->AddTab(GithubPR_Description_TabId, ETabState::OpenedTab)
+                ->AddTab(GithubPR_ListFile_TabId, ETabState::OpenedTab)
+            )
+        );
+
+    const auto GithubPRView = TabManager->RestoreFrom(DefaultLayout, nullptr).ToSharedRef();
+
+    Toolbar =
+		SNew(SHorizontalBox)
+		+ SHorizontalBox::Slot()
+		[
+			ToolBarBuilder.MakeWidget()
+		]
+	    + SHorizontalBox::Slot()
+		.HAlign(HAlign_Right)
+		.AutoWidth()
+		[
+			SNew(SBorder)
+			.VAlign(VAlign_Center)
+		    .BorderImage(FAppStyle::Get().GetBrush("Brushes.Panel"))
+		    .Padding(FMargin(0.0f))
+		];
+
+	ChildSlot
+		[
+            SNew(SVerticalBox)
+            +SVerticalBox::Slot()
+            .AutoHeight()
+            .Padding(0.0f, 2.0f, 0.0f, 2.0f)
+            [
+                SNew(SHorizontalBox)
+                + SHorizontalBox::Slot()
+            .Padding(10.f)
+            .AutoWidth()
+            [
+                Toolbar.ToSharedRef()
+            ]
+            ]
+            +SVerticalBox::Slot()
+            .Padding(10.f)
+            .FillHeight(1)
+            [
+                GithubPRView
+            ]
+		];
+}
+
+TSharedRef<SDockTab> SPullRequestEditor::CreateListfilesTab(const FSpawnTabArgs& Args)
+{
+    if (!ListFileWidget.IsValid())
+    {
+        SAssignNew(ListFileWidget, SListView<TSharedPtr<FFileItem>>)
+            .ListItemsSource(&ListFileItems)
+            .ItemHeight(15)
+            .SelectionMode(ESelectionMode::Single)
+            .OnGenerateRow(this, &SPullRequestEditor::GenerateFileRowWidget)
+            .OnMouseButtonDoubleClick(this, &SPullRequestEditor::OnFileDoubleClicked)
+            .ScrollbarVisibility(EVisibility::Visible);
+    }
+
+
+    int Page = 1;
+    ListFileItems.Empty();
+    FOnFilesListAvailable UpdateListFile;
+    UpdateListFile = FOnFilesListAvailable::CreateLambda([this, Page, UpdateListFile](const TArray<FFileChangeInformation>& Files, int Code, const FString& Content)
+        {
+            if (Files.IsEmpty())
+                return;
+            for (auto& Item : Files)
+            {
+                auto ListItem = MakeShared<FFileItem>();
+                ListItem->Info = Item;
+                ListItem->PRInfo = PullRequestData;
+                ListFileItems.Add(ListItem);
+            }
+            if (ListFileWidget.IsValid())
+                ListFileWidget->RequestListRefresh();
+            UGithubApi::GetFilesInPullRequest(PullRequestData->Info.number, UpdateListFile, 9999, Page + 1);
+
+        });
+
+    UGithubApi::GetFilesInPullRequest(PullRequestData->Info.number, UpdateListFile);
+
+    auto NewWidget = SNew(SVerticalBox)
+        +SVerticalBox::Slot()
+        .AutoHeight()
+        .Padding(10.0f)
+        [
+                SNew(SSearchBox)
+                    .OnTextCommitted(this, &SPullRequestEditor::OnFilterTextCommitted)
+        ]
+        +SVerticalBox::Slot()
+        .Padding(10.0f)
+        .HAlign(HAlign_Fill)
+        .VAlign(VAlign_Fill)
+        .FillHeight(1)
+        [
+            ListFileWidget.ToSharedRef()
+        ];
+
+    return SNew(SDockTab)
+        .TabRole(ETabRole::PanelTab)
+        [
+            NewWidget
+        ];
+}
+
+TSharedRef<SDockTab> SPullRequestEditor::CreateDescriptionTab(const FSpawnTabArgs& Args)
+{
+
+    auto WidgetTag = SNew(SBox).Padding(10.0f)
+        [
+            SNew(STextBlock)
+            .Text(FText::FromString(TEXT("CreateDescriptionTab")))
+        ];
+    return SNew(SDockTab)
+        .TabRole(ETabRole::PanelTab)
+        [
+            WidgetTag
+        ];
+}
+
+void SPullRequestEditor::OnFilterTextCommitted(const FText& InFilterText, ETextCommit::Type InCommitType)
+{
+}
+
+TSharedRef<ITableRow> SPullRequestEditor::GenerateFileRowWidget(TSharedPtr<FFileItem> InItem, const TSharedRef<class STableViewBase>& OwnerTable)
+{
+    static const FSlateFontInfo Font = FCoreStyle::GetDefaultFontStyle("Regular", 12);
+
+    const FSlateBrush* IconSamples = FEditorStyle::GetBrush(TEXT("Graph.StateNode.Icon"));
+
+    if (InItem->Info.status == "added")
+    {
+        IconSamples = FEditorStyle::GetBrush(TEXT("SourceControl.Add"));
+    }
+    else if (InItem->Info.status == "modified")
+    {
+        IconSamples = FEditorStyle::GetBrush(TEXT("SourceControl.Edit"));
+    }
+    else if (InItem->Info.status == "renamed")
+    {
+        IconSamples = FEditorStyle::GetBrush(TEXT("SourceControl.Integrate"));
+    }
+    return SNew(STableRow<TSharedPtr<FPullRequestItem>>, OwnerTable)
+        [
+            SNew(SBox)
+            .Padding(8)
+        [
+            SNew(SHorizontalBox)
+            + SHorizontalBox::Slot()
+        .Padding(0, 0, 4, 0)
+        .AutoWidth()
+        [
+            SNew(SImage)
+            .Image(IconSamples)
+        ]
+    + SHorizontalBox::Slot()
+        .FillWidth(1.0f)
+        [
+            SNew(STextBlock)
+            .Text(FText::FromString(InItem->Info.filename))
+        .Font(Font)
+        ]
+        ]
+        ];
+}
+
+
+void SPullRequestEditor::OnFileDoubleClicked(TSharedPtr<FFileItem> Entry)
+{
+    if (OpenDiffStatus.bIsOpening)
+        return;
+
+    OpenDiffStatus.bIsOpening = true;
+    OpenDiffStatus.Item = Entry;
+    OpenDiffStatus.NumFileDownload = 0;
+    UGithubApi::DownloadFile(FOnFileDownloadComplete::CreateLambda([this](const FString& GamePath, int Code, const FString& Content)
+        {
+            OpenDiffStatus.bHeadVersionDownloadSuccess = !GamePath.IsEmpty();
+            OpenDiffStatus.HeadVersionFile = GamePath;
+            OpenDiffStatus.NumFileDownload++;
+            if (OpenDiffStatus.NumFileDownload == 2)
+            {
+                OpenDiff();
+            }
+
+        }), Entry->Info.filename, Entry->PRInfo->Info.head.sha);
+
+    UGithubApi::DownloadFile(FOnFileDownloadComplete::CreateLambda([this](const FString& GamePath, int Code, const FString& Content)
+        {
+            OpenDiffStatus.bBaseVersionDownloadSuccess = !GamePath.IsEmpty();
+            OpenDiffStatus.BaseVersionFile = GamePath;
+            OpenDiffStatus.NumFileDownload++;
+            if (OpenDiffStatus.NumFileDownload == 2)
+            {
+                OpenDiff();
+            }
+
+        }), Entry->Info.filename, Entry->PRInfo->Info.base.sha);
+}
+
+void SPullRequestEditor::OpenDiff()
+{
+    if (!OpenDiffStatus.bIsOpening)
+        return;
+    UPackage* BaseTempPkg = nullptr;
+    UPackage* HeadTempPkg = nullptr;
+    UObject* HeadAsset = nullptr;
+    UObject* BaseAsset = nullptr;
+    FString AssetName = FPaths::GetBaseFilename(OpenDiffStatus.Item->Info.filename, true);
+    if (OpenDiffStatus.bHeadVersionDownloadSuccess)
+    {
+        HeadTempPkg = LoadPackage(NULL, *OpenDiffStatus.HeadVersionFile, LOAD_ForDiff | LOAD_DisableCompileOnLoad);
+        HeadAsset = FindObject<UObject>(HeadTempPkg, *AssetName);
+    }
+
+    if (OpenDiffStatus.bBaseVersionDownloadSuccess)
+    {
+        BaseTempPkg = LoadPackage(NULL, *OpenDiffStatus.BaseVersionFile, LOAD_ForDiff | LOAD_DisableCompileOnLoad);
+        BaseAsset = FindObject<UObject>(BaseTempPkg, *AssetName);
+    }
+
+    FAssetToolsModule& AssetToolsModule = FModuleManager::LoadModuleChecked<FAssetToolsModule>(TEXT("AssetTools"));
+    if (HeadAsset != NULL && BaseAsset != NULL)
+    {
+        FRevisionInfo OldRevision = { OpenDiffStatus.Item->PRInfo->Info.base.sha, 0, {} };
+        FRevisionInfo CurrentRevision = { OpenDiffStatus.Item->PRInfo->Info.head.sha, 1, {}};
+        AssetToolsModule.Get().DiffAssets(BaseAsset, HeadAsset, OldRevision, CurrentRevision);
+    }
+    else if (HeadAsset != NULL)
+    {
+        AssetToolsModule.Get().OpenEditorForAssets({HeadAsset});
+    }
+    OpenDiffStatus.bIsOpening = false;
+}
+
+
+
+
 SPullRequestsEditor::SPullRequestsEditor()
 {
     for (EPullRequestQueryState State : TEnumRange<EPullRequestQueryState>())
@@ -23,7 +301,8 @@ SPullRequestsEditor::SPullRequestsEditor()
     }
 }
 
-void SPullRequestsEditor::Construct(const FArguments& InArgs)
+void SPullRequestsEditor::Construct(const FArguments& InArgs, const FTabId& ConstructUnderMajorTab,
+    const TSharedPtr<SWindow>& ConstructUnderWindow)
 {
     FToolBarBuilder ToolBarBuilder(TSharedPtr< const FUICommandList >(), FMultiBoxCustomization::None);
     ToolBarBuilder.AddToolBarButton(
@@ -44,6 +323,25 @@ void SPullRequestsEditor::Construct(const FArguments& InArgs)
         , LOCTEXT("SPullRequestsEditor", "Remove cache in save dir")
         , FSlateIcon(FEditorStyle::GetStyleSetName(), "ContentReference.Clear")
     );
+
+    // Set up a tab view so we can split the content into different views
+    MajorTab = SNew(SDockTab).TabRole(ETabRole::MajorTab);
+    TabManager = FGlobalTabmanager::Get()->NewTabManager(MajorTab.ToSharedRef());
+
+    // Create a default layout for the tab manager, this allows us to open the tabs by default
+    const TSharedRef<FTabManager::FLayout> DefaultLayout = FTabManager::NewLayout("GithubPRList_Layout")
+        ->AddArea(
+            FTabManager::NewPrimaryArea()
+            ->SetOrientation(Orient_Horizontal)
+            ->Split
+            (
+                FTabManager::NewStack()
+                    ->AddTab(GithubPR_List_TabId, ETabState::ClosedTab)
+            )
+        );
+
+    const auto GithubPRList = TabManager->RestoreFrom(DefaultLayout, ConstructUnderWindow).ToSharedRef();
+
     Toolbar = 
         SNew(SHorizontalBox)
         +SHorizontalBox::Slot()
@@ -153,18 +451,7 @@ void SPullRequestsEditor::Construct(const FArguments& InArgs)
                 + SSplitter::Slot()
 				.Value(.8f)
                 [
-                    SNew(SScrollBox)
-                    + SScrollBox::Slot()
-                    .VAlign(VAlign_Top)
-                    [
-                        SAssignNew(ListFileWidget, SListView<TSharedPtr<FFileItem>>)
-                        .ListItemsSource(&ListFileItems)
-                        .ItemHeight(15)
-                        .SelectionMode(ESelectionMode::Single)
-                        .OnGenerateRow(this, &SPullRequestsEditor::GenerateFileRowWidget)
-                        .OnMouseButtonDoubleClick(this, &SPullRequestsEditor::OnFileDoubleClicked)
-                        .ScrollbarVisibility(EVisibility::Visible)
-                    ]
+                    GithubPRList
                 ]
         ]
     ];
@@ -176,138 +463,16 @@ TSharedRef<ITableRow> SPullRequestsEditor::GenerateCategoryRowWidget(TSharedPtr<
     return SNew(SPullRequestRow, OwnerTable, InItem);
 }
 
-TSharedRef<ITableRow> SPullRequestsEditor::GenerateFileRowWidget(TSharedPtr<FFileItem> InItem, const TSharedRef<class STableViewBase>& OwnerTable)
-{
-	static const FSlateFontInfo Font = FCoreStyle::GetDefaultFontStyle("Regular", 12);
-
-	const FSlateBrush* IconSamples = FEditorStyle::GetBrush(TEXT("Graph.StateNode.Icon"));
-
-    if (InItem->Info.status == "added")
-    {
-        IconSamples = FEditorStyle::GetBrush(TEXT("SourceControl.Add"));
-    }
-    else if (InItem->Info.status == "modified")
-    {
-        IconSamples = FEditorStyle::GetBrush(TEXT("SourceControl.Edit"));
-    }
-    else if (InItem->Info.status == "renamed")
-    {
-        IconSamples = FEditorStyle::GetBrush(TEXT("SourceControl.Integrate"));
-    }
-	return SNew(STableRow<TSharedPtr<FPullRequestItem>>, OwnerTable)
-		[
-			SNew(SBox)
-			.Padding(8)
-		    [
-			    SNew(SHorizontalBox)
-			    + SHorizontalBox::Slot()
-		        .Padding(0, 0, 4, 0)
-		        .AutoWidth()
-		        [
-			        SNew(SImage)
-			        .Image(IconSamples)
-		        ]
-	            + SHorizontalBox::Slot()
-		        .FillWidth(1.0f)
-		        [
-			        SNew(STextBlock)
-			        .Text(FText::FromString(InItem->Info.filename))
-		            .Font(Font)
-		        ]
-		    ]
-		];
-}
-
 void SPullRequestsEditor::OnMarkerListDoubleClicked(TSharedPtr<FPullRequestItem> Entry)
 {
-    int Page = 1;
-    ListFileItems.Empty();
-    FOnFilesListAvailable UpdateListFile;
-    UpdateListFile = FOnFilesListAvailable::CreateLambda([this, Entry, Page, UpdateListFile](const TArray<FFileChangeInformation>& Files, int Code, const FString& Content)
-    {
-        if (Files.IsEmpty())
-            return;
-        for (auto& Item : Files)
-        {
-            auto ListItem = MakeShared<FFileItem>();
-            ListItem->Info = Item;
-            ListItem->PRInfo = Entry;
-            ListFileItems.Add(ListItem);
-        }
-        ListFileWidget->RequestListRefresh();
-        UGithubApi::GetFilesInPullRequest(Entry->Info.number, UpdateListFile, 300, Page + 1);
+    TSharedPtr<SDockTab> NewTab = SNew(SDockTab).Label(FText::FromString(Entry->Info.title))
+        [
+            // add a wrapper widget here, that says the name of the object/component for pinned tabs 
+            SNew(SPullRequestEditor, MajorTab.ToSharedRef()).PullRequestId(Entry)
+        ];
 
-    });
 
-    UGithubApi::GetFilesInPullRequest(Entry->Info.number, UpdateListFile);
-}
-
-void SPullRequestsEditor::OnFileDoubleClicked(TSharedPtr<FFileItem> Entry)
-{
-    if (OpenDiffStatus.bIsOpening)
-        return;
-
-    OpenDiffStatus.bIsOpening = true;
-    OpenDiffStatus.Item = Entry;
-    OpenDiffStatus.NumFileDownload = 0;
-    UGithubApi::DownloadFile(FOnFileDownloadComplete::CreateLambda([this](const FString& GamePath, int Code, const FString& Content)
-        {
-            OpenDiffStatus.bHeadVersionDownloadSuccess = !GamePath.IsEmpty();
-            OpenDiffStatus.HeadVersionFile = GamePath;
-            OpenDiffStatus.NumFileDownload++;
-            if (OpenDiffStatus.NumFileDownload == 2)
-            {
-                OpenDiff();
-            }
-
-        }), Entry->Info.filename, Entry->PRInfo->Info.head.sha);
-
-    UGithubApi::DownloadFile(FOnFileDownloadComplete::CreateLambda([this](const FString& GamePath, int Code, const FString& Content)
-        {
-            OpenDiffStatus.bBaseVersionDownloadSuccess = !GamePath.IsEmpty();
-            OpenDiffStatus.BaseVersionFile = GamePath;
-            OpenDiffStatus.NumFileDownload++;
-            if (OpenDiffStatus.NumFileDownload == 2)
-            {
-                OpenDiff();
-            }
-
-        }), Entry->Info.filename, Entry->PRInfo->Info.base.sha);
-}
-
-void SPullRequestsEditor::OpenDiff()
-{
-    if (!OpenDiffStatus.bIsOpening)
-        return;
-    UPackage* BaseTempPkg = nullptr;
-    UPackage* HeadTempPkg = nullptr;
-    UObject* HeadAsset = nullptr;
-    UObject* BaseAsset = nullptr;
-    FString AssetName = FPaths::GetBaseFilename(OpenDiffStatus.Item->Info.filename, true);
-    if (OpenDiffStatus.bHeadVersionDownloadSuccess)
-    {
-        HeadTempPkg = LoadPackage(NULL, *OpenDiffStatus.HeadVersionFile, LOAD_ForDiff | LOAD_DisableCompileOnLoad);
-        HeadAsset = FindObject<UObject>(HeadTempPkg, *AssetName);
-    }
-
-    if (OpenDiffStatus.bBaseVersionDownloadSuccess)
-    {
-        BaseTempPkg = LoadPackage(NULL, *OpenDiffStatus.BaseVersionFile, LOAD_ForDiff | LOAD_DisableCompileOnLoad);
-        BaseAsset = FindObject<UObject>(BaseTempPkg, *AssetName);
-    }
-
-    FAssetToolsModule& AssetToolsModule = FModuleManager::LoadModuleChecked<FAssetToolsModule>(TEXT("AssetTools"));
-    if (HeadAsset != NULL && BaseAsset != NULL)
-    {
-        FRevisionInfo OldRevision = { OpenDiffStatus.Item->PRInfo->Info.base.sha, 0, {} };
-        FRevisionInfo CurrentRevision = { OpenDiffStatus.Item->PRInfo->Info.head.sha, 1, {}};
-        AssetToolsModule.Get().DiffAssets(BaseAsset, HeadAsset, OldRevision, CurrentRevision);
-    }
-    else if (HeadAsset != NULL)
-    {
-        AssetToolsModule.Get().OpenEditorForAssets({HeadAsset});
-    }
-    OpenDiffStatus.bIsOpening = false;
+    TabManager->InsertNewDocumentTab(GithubPR_List_TabId, FTabManager::FRequireClosedTab(), NewTab.ToSharedRef());
 }
 
 void SPullRequestsEditor::RefreshPullRequest()
@@ -352,6 +517,7 @@ FText SPullRequestsEditor::GetSelectedStateAsText() const
 {
     return FText::FromName(QueryState);
 }
+
 
 void SPullRequestRow::Construct(const FArguments& InArgs, const TSharedRef<STableViewBase>& InOwnerTableView, TSharedPtr<FPullRequestItem> InItem)
 {

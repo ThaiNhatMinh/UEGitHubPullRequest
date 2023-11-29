@@ -25,6 +25,35 @@ struct FOpenDiffAssetStatusEffect
     TSharedPtr<FFileItem> Item;
 };
 
+
+class SPullRequestEditor : public SCompoundWidget
+{
+public:
+
+    SLATE_BEGIN_ARGS(SPullRequestEditor) {}
+        SLATE_ARGUMENT(TSharedPtr<FPullRequestItem>, PullRequestId)
+    SLATE_END_ARGS()
+    void Construct(const FArguments& InArgs, const TSharedRef<SDockTab>& ConstructUnderMajorTab);
+
+    void ReviewChanges() {};
+
+
+    TSharedRef<SDockTab> CreateListfilesTab(const FSpawnTabArgs& Args);
+    TSharedRef<SDockTab> CreateDescriptionTab(const FSpawnTabArgs& Args);
+    void OnFileDoubleClicked(TSharedPtr<FFileItem> Entry);
+    TSharedRef<ITableRow> GenerateFileRowWidget(TSharedPtr<FFileItem> InItem, const TSharedRef<class STableViewBase>& OwnerTable);
+    void OpenDiff();
+    void OnFilterTextCommitted(const FText& InFilterText, ETextCommit::Type InCommitType);
+protected:
+    TSharedPtr<FPullRequestItem>  PullRequestData;
+    TSharedPtr<FTabManager> TabManager;
+    TSharedPtr<SListView<TSharedPtr<FFileItem>>> ListFileWidget;
+    TArray<TSharedPtr<FFileItem>> ListFileItems;
+    FOpenDiffAssetStatusEffect OpenDiffStatus;
+    TSharedPtr<SWidget> Toolbar;
+};
+
+
 class SPullRequestsEditor : public SCompoundWidget
 {
 public:
@@ -34,13 +63,11 @@ public:
     {}
     SLATE_END_ARGS()
 
-    void Construct(const FArguments& InArgs);
+    void Construct(const FArguments& InArgs, const FTabId& ConstructUnderMajorTab,
+        const TSharedPtr<SWindow>& ConstructUnderWindow);
     TSharedRef<ITableRow> GenerateCategoryRowWidget(TSharedPtr<FPullRequestItem> InItem, const TSharedRef<class STableViewBase>& OwnerTable);
-    TSharedRef<ITableRow> GenerateFileRowWidget(TSharedPtr<FFileItem> InItem, const TSharedRef<class STableViewBase>& OwnerTable);
     void OnMarkerListDoubleClicked(TSharedPtr<FPullRequestItem> Entry);
-    void OnFileDoubleClicked(TSharedPtr<FFileItem> Entry);
 
-    void OpenDiff();
     void RefreshPullRequest();
     void CleanCache();
     void OnFilterTextCommitted(const FText& InFilterText, ETextCommit::Type InCommitType);
@@ -50,12 +77,11 @@ public:
 private:
     TSharedPtr<SWidget> Toolbar;
     TSharedPtr<SListView<TSharedPtr<FPullRequestItem>>> Widget;
-    TSharedPtr<SListView<TSharedPtr<FFileItem>>> ListFileWidget;
     TArray<TSharedPtr<FPullRequestItem>> PullRequestItems;
-    TArray<TSharedPtr<FFileItem>> ListFileItems;
     TArray<FName> QueryOptions;
-    FOpenDiffAssetStatusEffect OpenDiffStatus;
 
+    TSharedPtr<FTabManager> TabManager;
+    TSharedPtr<SDockTab> MajorTab;
     FName QueryState = "Open";
 };
 

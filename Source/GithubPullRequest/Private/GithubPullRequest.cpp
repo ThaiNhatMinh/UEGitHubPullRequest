@@ -13,12 +13,12 @@ static const FName MergeAssistTabId = FName(TEXT("MergeAssist1234"));
 
 void FGithubPullRequestModule::StartupModule()
 {
-	const auto TabSpawner = FOnSpawnTab::CreateStatic([](const FSpawnTabArgs&)
+	const auto TabSpawner = FOnSpawnTab::CreateStatic([](const FSpawnTabArgs& Args)
 		{
 			// Create a dock tab and fill it with the merge assist UI
 			return SNew(SDockTab)
 				[
-					SNew(SPullRequestsEditor)
+					SNew(SPullRequestsEditor, Args.GetTabId(), Args.GetOwnerWindow())
 				];
 		});
 	// This code will execute after your module is loaded into memory; the exact timing is specified in the .uplugin file per-module
@@ -29,7 +29,6 @@ void FGithubPullRequestModule::StartupModule()
 	TabSpawnerEntry.SetTooltipText(LOCTEXT("TooltipText", "Open Github PullRequest tool"));
 
 	TabSpawnerEntry.SetGroup( WorkspaceMenu::GetMenuStructure().GetToolsCategory() );
-		//.SetIcon( FStyleHelper::GetSlateIcon(PanelIconName) );
 }
 
 void FGithubPullRequestModule::ShutdownModule()
