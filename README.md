@@ -1,5 +1,5 @@
-# GitHubPullRequest
-Unreal Plugin view pull request
+# Unreal Editor GitHubPullRequest
+Unreal Plugin that allow you to view pull request/open asset diff directly in Unreal Editor, to easy to review  blueprint changed.
 
 # Setup
 
