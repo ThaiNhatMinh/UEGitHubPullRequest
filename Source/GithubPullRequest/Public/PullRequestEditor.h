@@ -1,6 +1,7 @@
 #pragma once
 #include "Widgets/Docking/SDockTab.h"
 #include "Widgets/Views/SListView.h"
+#include "Widgets/Text/SMultiLineEditableText.h"
 #include "GithubApi.h"
 
 struct FPullRequestItem
@@ -14,6 +15,12 @@ struct FFileItem
     FFileChangeInformation Info;
 };
 
+struct FCommitItem
+{
+    TSharedPtr<FPullRequestItem> PRInfo;
+    FCommitFullData CommitInfo;
+};
+
 struct FOpenDiffAssetStatusEffect
 {
     bool bIsOpening = false;
@@ -25,6 +32,21 @@ struct FOpenDiffAssetStatusEffect
     TSharedPtr<FFileItem> Item;
 };
 
+class SReviewChanges : public SCompoundWidget
+{
+public:
+    SLATE_BEGIN_ARGS(SReviewChanges) {}
+        SLATE_ARGUMENT(TSharedPtr<FPullRequestItem>, PullRequestId)
+    SLATE_END_ARGS()
+
+    void Construct(const FArguments& InArgs);
+    FReply OnCommentBtnClick(FString Event) const;
+
+protected:
+    TSharedPtr<FPullRequestItem>  PullRequestData;
+    TSharedPtr<SMultiLineEditableText> CommentWidget;
+
+};
 
 class SPullRequestEditor : public SCompoundWidget
 {
@@ -40,15 +62,19 @@ public:
 
     TSharedRef<SDockTab> CreateListfilesTab(const FSpawnTabArgs& Args);
     TSharedRef<SDockTab> CreateDescriptionTab(const FSpawnTabArgs& Args);
+    TSharedRef<SDockTab> CreateCommitsTab(const FSpawnTabArgs& Args);
     void OnFileDoubleClicked(TSharedPtr<FFileItem> Entry);
     TSharedRef<ITableRow> GenerateFileRowWidget(TSharedPtr<FFileItem> InItem, const TSharedRef<class STableViewBase>& OwnerTable);
     void OpenDiff();
     void OnFilterTextCommitted(const FText& InFilterText, ETextCommit::Type InCommitType);
+    TSharedRef<SWidget> MakeReviewChanges();
+
 protected:
     TSharedPtr<FPullRequestItem>  PullRequestData;
     TSharedPtr<FTabManager> TabManager;
     TSharedPtr<SListView<TSharedPtr<FFileItem>>> ListFileWidget;
     TArray<TSharedPtr<FFileItem>> ListFileItems;
+    TArray<TSharedPtr<FCommitItem>> ListCommitItems;
     FOpenDiffAssetStatusEffect OpenDiffStatus;
     TSharedPtr<SWidget> Toolbar;
 };

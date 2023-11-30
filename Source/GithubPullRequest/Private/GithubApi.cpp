@@ -266,3 +266,151 @@ bool UGithubApi::DownloadAvatar(FOnFileDownloadComplete OnFileDownloadComplete, 
 	Request->ProcessRequest();
 	return true;
 }
+
+bool UGithubApi::CreateReview(FOnCreateReviewComplete OnCreateReviewComplete, int PullNumber, const FString& Event, const FString& Body, const FString& CommitId, const TArray<FReviewComment>& Comments)
+{
+	auto Settings = GetDefault<UGithubPullRequestSettings>();
+	FHttpModule* Http = &FHttpModule::Get();
+	FHttpRequestRef Request = Http->CreateRequest();
+	auto BaseUrl = GetBaseUrl();
+	auto Url = FString::Format(TEXT("{0}/pulls/{1}/reviews"), {BaseUrl, PullNumber});
+	Request->SetURL(Url);
+	Request->SetHeader(TEXT("Authorization"), FString::Printf(TEXT("Bearer %s"), *Settings->GithubToken));
+	Request->SetHeader(TEXT("Content-Type"), TEXT("application/json"));
+	Request->SetHeader(TEXT("User-Agent"), TEXT("X-UnrealEngine-Agent"));
+	Request->SetHeader(TEXT("Accepts"), TEXT("application/vnd.github.raw+json"));
+	Request->SetVerb("POST");
+
+	FReviewBody BodyStruct;
+	BodyStruct.commit_id = CommitId;
+	BodyStruct.body = Body;
+	BodyStruct.event = Event;
+	BodyStruct.comments = Comments;
+	TSharedRef<FJsonObject> OutJsonObject = MakeShareable(new FJsonObject);
+	FJsonObjectConverter::UStructToJsonObject(FReviewBody::StaticStruct(), &BodyStruct, OutJsonObject, 0, 0);
+	if (CommitId.IsEmpty())
+		OutJsonObject->RemoveField("commit_id");
+
+	FString OutputString;
+	TSharedRef< TJsonWriter<> > Writer = TJsonWriterFactory<>::Create(&OutputString);
+	FJsonSerializer::Serialize(OutJsonObject, Writer);
+
+	Request->SetContentAsString(OutputString);
+
+	Request->OnProcessRequestComplete().BindLambda([OnCreateReviewComplete](FHttpRequestPtr InRequest, FHttpResponsePtr InResponse, bool bConnectedSuccessfully)
+		{
+			if (!InResponse.IsValid())
+			{
+				OnCreateReviewComplete.ExecuteIfBound(404, TEXT("Response is not valid"));
+				return;
+			}
+			OnCreateReviewComplete.ExecuteIfBound(InResponse->GetResponseCode(), InResponse->GetContentAsString());
+		});
+	Request->ProcessRequest();
+	return true;
+}
+
+bool UGithubApi::ListCommit(FOnCommitListAvailable OnListCommitComplete, const FString& sha, const FString& path, const FString& author, const FString& committer, const FString& since, const FString& until, int page, int per_page)
+{
+	if (sha.IsEmpty())
+		return false;
+	auto Settings = GetDefault<UGithubPullRequestSettings>();
+	FHttpModule* Http = &FHttpModule::Get();
+	FHttpRequestRef Request = Http->CreateRequest();
+	auto BaseUrl = GetBaseUrl();
+	auto Url = FString::Format(TEXT("{0}/commits"), {BaseUrl});
+	Url += "?sha=" + sha;
+	if (!path.IsEmpty())
+		Url += "&path=" + path;
+	if (!author.IsEmpty())
+		Url += "&author=" + author;
+	if (!committer.IsEmpty())
+		Url += "&committer=" + committer;
+	if (!since.IsEmpty())
+		Url += "&committer=" + since;
+	if (!until.IsEmpty())
+		Url += "&until=" + until;
+	Url += "&page=" + FString::FromInt(page);
+	Url += "&per_page=" + FString::FromInt(per_page);
+
+	Request->SetURL(Url);
+	Request->SetHeader(TEXT("Authorization"), FString::Printf(TEXT("Bearer %s"), *Settings->GithubToken));
+	Request->SetHeader(TEXT("Content-Type"), TEXT("application/json"));
+	Request->SetHeader(TEXT("User-Agent"), TEXT("X-UnrealEngine-Agent"));
+	Request->SetHeader(TEXT("Accepts"), TEXT("application/vnd.github.raw+json"));
+	Request->SetVerb("GET");
+	Request->OnProcessRequestComplete().BindLambda([OnListCommitComplete](FHttpRequestPtr InRequest, FHttpResponsePtr InResponse, bool bConnectedSuccessfully)
+		{
+			if (!InResponse.IsValid())
+			{
+				OnListCommitComplete.ExecuteIfBound({}, 404, TEXT("Response is not valid"));
+				return;
+			}
+			auto Content = InResponse->GetContentAsString();
+			TSharedRef<TJsonReader<>> const JsonReader = TJsonReaderFactory<>::Create(Content);
+			TArray<TSharedPtr<FJsonValue>> JsonObject;
+			const TSharedPtr<FJsonObject>* ResultObject = nullptr;
+
+			if (!FJsonSerializer::Deserialize(JsonReader, JsonObject) || JsonObject.IsEmpty())
+			{
+				OnListCommitComplete.ExecuteIfBound({}, 600, TEXT("Parse string to json failed"));
+				return;
+			}
+			TArray<FCommitFullData> Commits;
+			for (auto& Element : JsonObject)
+			{
+				FCommitFullData Info;
+				if (FJsonObjectConverter::JsonObjectToUStruct<FCommitFullData>(Element->AsObject().ToSharedRef(), &Info))
+					Commits.Add(Info);
+			}
+			OnListCommitComplete.ExecuteIfBound(Commits, 200, TEXT(""));
+		});
+	Request->ProcessRequest();
+	return true;
+}
+
+bool UGithubApi::ListCommitFromPull(FOnCommitListAvailable OnListCommitComplete, int PullNumber, int page, int per_page)
+{
+	auto Settings = GetDefault<UGithubPullRequestSettings>();
+	FHttpModule* Http = &FHttpModule::Get();
+	FHttpRequestRef Request = Http->CreateRequest();
+	auto BaseUrl = GetBaseUrl();
+	auto Url = FString::Format(TEXT("{0}/pulls/{1}/commits"), {BaseUrl, PullNumber});
+	Url += "?page=" + FString::FromInt(page);
+	Url += "&per_page=" + FString::FromInt(per_page);
+
+	Request->SetURL(Url);
+	Request->SetHeader(TEXT("Authorization"), FString::Printf(TEXT("Bearer %s"), *Settings->GithubToken));
+	Request->SetHeader(TEXT("Content-Type"), TEXT("application/json"));
+	Request->SetHeader(TEXT("User-Agent"), TEXT("X-UnrealEngine-Agent"));
+	Request->SetHeader(TEXT("Accepts"), TEXT("application/vnd.github.raw+json"));
+	Request->SetVerb("GET");
+	Request->OnProcessRequestComplete().BindLambda([OnListCommitComplete](FHttpRequestPtr InRequest, FHttpResponsePtr InResponse, bool bConnectedSuccessfully)
+		{
+			if (!InResponse.IsValid())
+			{
+				OnListCommitComplete.ExecuteIfBound({}, 404, TEXT("Response is not valid"));
+				return;
+			}
+			auto Content = InResponse->GetContentAsString();
+			TSharedRef<TJsonReader<>> const JsonReader = TJsonReaderFactory<>::Create(Content);
+			TArray<TSharedPtr<FJsonValue>> JsonObject;
+			const TSharedPtr<FJsonObject>* ResultObject = nullptr;
+
+			if (!FJsonSerializer::Deserialize(JsonReader, JsonObject) || JsonObject.IsEmpty())
+			{
+				OnListCommitComplete.ExecuteIfBound({}, 600, TEXT("Parse string to json failed"));
+				return;
+			}
+			TArray<FCommitFullData> Commits;
+			for (auto& Element : JsonObject)
+			{
+				FCommitFullData Info;
+				if (FJsonObjectConverter::JsonObjectToUStruct<FCommitFullData>(Element->AsObject().ToSharedRef(), &Info))
+					Commits.Add(Info);
+			}
+			OnListCommitComplete.ExecuteIfBound(Commits, 200, TEXT(""));
+		});
+	Request->ProcessRequest();
+	return true;
+}

@@ -4,6 +4,7 @@
 #include "Widgets/Images/SImage.h"
 #include "Widgets/Layout/SSpacer.h"
 #include "Widgets/Input/SSearchBox.h"
+#include "Widgets/Text/SRichTextBlock.h"
 #include "Brushes/SlateDynamicImageBrush.h"
 #include "Widgets/Input/SComboBox.h"
 #include "GithubApi.h"
@@ -15,7 +16,81 @@
 
 static const FName GithubPR_ListFile_TabId = FName(TEXT("GithubPR_Listfiles_TabId"));
 static const FName GithubPR_Description_TabId = FName(TEXT("GithubPR_Description_TabId"));
+static const FName GithubPR_Commits_TabId = FName(TEXT("GithubPR_Commits_TabId"));
 static const FName GithubPR_List_TabId = FName(TEXT("GithubPR_List_TabId"));
+
+void SReviewChanges::Construct(const FArguments& InArgs)
+{
+    PullRequestData = InArgs._PullRequestId;
+    SAssignNew(CommentWidget, SMultiLineEditableText)
+        .Text(FText::FromString(TEXT("ASDASDSDSD")))
+        .WrapTextAt(200.0f);
+
+    ChildSlot
+        [
+            SNew(SBox)
+            .Padding(10)
+            [
+            SNew(SVerticalBox)
+            +SVerticalBox::Slot()
+            .AutoHeight()
+            .Padding(20)
+            [
+                SNew(STextBlock)
+                .Text(LOCTEXT("SPullRequestsEditor", "Finish your review"))
+                .Font(FCoreStyle::GetDefaultFontStyle("Normal", 15))
+            ]
+            +SVerticalBox::Slot()
+            .MaxHeight(300)
+            .Padding(0, 0, 0, 10)
+            [
+                SNew(SBorder)
+                [
+                    CommentWidget.ToSharedRef()
+                ]
+            ]
+            +SVerticalBox::Slot()
+            .AutoHeight()
+                [
+                    SNew(SHorizontalBox)
+                    + SHorizontalBox::Slot()
+                    .Padding(5)
+                    [
+                        SNew(SButton).Text(FText::FromString(TEXT("Comments")))
+                        .OnClicked(this, &SReviewChanges::OnCommentBtnClick, FString(TEXT("COMMENT")))
+                    ]
+                    + SHorizontalBox::Slot()
+                    .Padding(5)
+                    [
+                        SNew(SButton).Text(FText::FromString(TEXT("Approve")))
+                        .OnClicked(this, &SReviewChanges::OnCommentBtnClick, FString(TEXT("APPROVE")))
+                    ]
+                    + SHorizontalBox::Slot()
+                    .Padding(5)
+                    [
+                        SNew(SButton).Text(FText::FromString(TEXT("Request change")))
+                        .OnClicked(this, &SReviewChanges::OnCommentBtnClick, FString(TEXT("REQUEST_CHANGES")))
+                    ]
+                ]
+            ]
+        ];
+}
+
+FReply SReviewChanges::OnCommentBtnClick(FString Event) const
+{
+    if (CommentWidget->GetText().IsEmptyOrWhitespace() || !PullRequestData.IsValid())
+        return FReply::Unhandled();
+    auto Lamda = FOnCreateReviewComplete::CreateLambda([this](int Code, const FString& Content)
+    {
+        int a = 0;
+        if (Code == 200)
+        {
+            int b = 0;
+        }
+    });
+    UGithubApi::CreateReview(Lamda, PullRequestData->Info.number, Event, CommentWidget->GetText().ToString());
+    return FReply::Handled();
+}
 
 
 void SPullRequestEditor::Construct(const FArguments& InArgs, const TSharedRef<SDockTab>& ConstructUnderMajorTab)
@@ -23,21 +98,20 @@ void SPullRequestEditor::Construct(const FArguments& InArgs, const TSharedRef<SD
     PullRequestData = InArgs._PullRequestId;
 
     FToolBarBuilder ToolBarBuilder(TSharedPtr< const FUICommandList >(), FMultiBoxCustomization::None);
-    ToolBarBuilder.AddToolBarButton(
-        FUIAction(
-            FExecuteAction::CreateSP(this, &SPullRequestEditor::ReviewChanges)
-        )
-        , NAME_None
-        , LOCTEXT("SPullRequestsEditor", "Review changes")
-        , LOCTEXT("SPullRequestsEditor", "Refresh pull request list")
-        , FSlateIcon(FEditorStyle::GetStyleSetName(), "Icons.Refresh")
-    );
+    ToolBarBuilder.AddComboButton(FUIAction(), FOnGetContent::CreateRaw(this, &SPullRequestEditor::MakeReviewChanges),
+        LOCTEXT("SPullRequestsEditor", "Review changes"),
+        LOCTEXT("SPullRequestsEditor", "Comments/Approve/Request change"),
+        FSlateIcon(FAppStyle::Get().GetStyleSetName(), "BlueprintDiff.ToolbarIcon"));
     // Set up a tab view so we can split the content into different views
     TabManager = FGlobalTabmanager::Get()->NewTabManager(ConstructUnderMajorTab);
 
     TabManager->RegisterTabSpawner(GithubPR_ListFile_TabId,
         FOnSpawnTab::CreateRaw(this, &SPullRequestEditor::CreateListfilesTab))
-        .SetDisplayName(LOCTEXT("SPullRequestsEditor", "Files"));
+        .SetDisplayName(LOCTEXT("SPullRequestsEditor", "Files changed"));
+
+    TabManager->RegisterTabSpawner(GithubPR_Commits_TabId,
+        FOnSpawnTab::CreateRaw(this, &SPullRequestEditor::CreateCommitsTab))
+        .SetDisplayName(LOCTEXT("SPullRequestsEditor", "Commits"));
 
     TabManager->RegisterTabSpawner(GithubPR_Description_TabId,
         FOnSpawnTab::CreateRaw(this, &SPullRequestEditor::CreateDescriptionTab))
@@ -52,6 +126,7 @@ void SPullRequestEditor::Construct(const FArguments& InArgs, const TSharedRef<SD
             (
                 FTabManager::NewStack()
                 ->AddTab(GithubPR_Description_TabId, ETabState::OpenedTab)
+                ->AddTab(GithubPR_Commits_TabId, ETabState::OpenedTab)
                 ->AddTab(GithubPR_ListFile_TabId, ETabState::OpenedTab)
             )
         );
@@ -60,7 +135,7 @@ void SPullRequestEditor::Construct(const FArguments& InArgs, const TSharedRef<SD
 
     Toolbar =
 		SNew(SHorizontalBox)
-		+ SHorizontalBox::Slot()
+        + SHorizontalBox::Slot()
 		[
 			ToolBarBuilder.MakeWidget()
 		]
@@ -78,24 +153,109 @@ void SPullRequestEditor::Construct(const FArguments& InArgs, const TSharedRef<SD
 		[
             SNew(SVerticalBox)
             +SVerticalBox::Slot()
-            .AutoHeight()
-            .Padding(0.0f, 2.0f, 0.0f, 2.0f)
-            [
-                SNew(SHorizontalBox)
-                + SHorizontalBox::Slot()
-            .Padding(10.f)
-            .AutoWidth()
-            [
-                Toolbar.ToSharedRef()
-            ]
-            ]
+                .AutoHeight()
+                .Padding(20)
+                [
+                    SNew(STextBlock)
+                    .Text(FText::FromString(FString::Printf(TEXT("%s #%d"), *PullRequestData->Info.title, PullRequestData->Info.number)))
+                    .HighlightText(FText::FromString(FString::Printf(TEXT("#%d"), PullRequestData->Info.number)))
+                    .Font(FCoreStyle::GetDefaultFontStyle("Bold", 20))
+                ]
+            + SVerticalBox::Slot()
+                .Padding(20, 0)
+                .AutoHeight()
+                [
+                    SNew(STextBlock)
+                    .Text(FText::FromString(FString::Printf(TEXT("%s"), *PullRequestData->Info.state)))
+                    .HighlightText(FText::FromString(FString::Printf(TEXT("%s"), *PullRequestData->Info.state)))
+                    .Font(FCoreStyle::GetDefaultFontStyle("Normal", 15))
+                ]
             +SVerticalBox::Slot()
-            .Padding(10.f)
-            .FillHeight(1)
-            [
-                GithubPRView
-            ]
+                .AutoHeight()
+                .Padding(0.0f, 2.0f, 0.0f, 2.0f)
+                [
+                    SNew(SHorizontalBox)
+                    + SHorizontalBox::Slot()
+                    .Padding(10.f)
+                    .AutoWidth()
+                    [
+                        Toolbar.ToSharedRef()
+                    ]
+                ]
+            +SVerticalBox::Slot()
+                .Padding(10.f)
+                .FillHeight(1)
+                [
+                    SNew(SBorder)
+                    .Padding(10)
+                    [
+                        GithubPRView
+                    ]
+                ]
 		];
+}
+
+TSharedRef<SWidget> SPullRequestEditor::MakeReviewChanges()
+{
+    return SNew(SReviewChanges).PullRequestId(PullRequestData);
+}
+
+TSharedRef<SDockTab> SPullRequestEditor::CreateCommitsTab(const FSpawnTabArgs& Args)
+{
+    auto ListCommitWidget = SNew(SVerticalBox);
+    auto NewWidget = SNew(SVerticalBox)
+        +SVerticalBox::Slot()
+        .AutoHeight()
+        .Padding(10.0f)
+        [
+            SNew(SSearchBox)
+            .OnTextCommitted(this, &SPullRequestEditor::OnFilterTextCommitted)
+        ]
+        +SVerticalBox::Slot()
+        .Padding(10.0f)
+        .HAlign(HAlign_Fill)
+        .VAlign(VAlign_Fill)
+        .FillHeight(1)
+        [
+            ListCommitWidget
+        ];
+
+    auto DockTab = SNew(SDockTab)
+        .TabRole(ETabRole::PanelTab)
+        .OnCanCloseTab_Lambda([](){return false;})
+        [
+            NewWidget
+        ];
+
+    int Page = 1;
+    ListCommitItems.Empty();
+    FOnCommitListAvailable OnCommitList;
+    OnCommitList = FOnCommitListAvailable::CreateLambda([this, Page, OnCommitList, DockTab, ListCommitWidget](const TArray<FCommitFullData>& Commits, int Code, const FString& Content)
+        {
+            if (Commits.IsEmpty())
+                return;
+            for (auto& Item : Commits)
+            {
+                auto ListItem = MakeShared<FCommitItem>();
+                ListItem->CommitInfo = Item;
+                ListItem->PRInfo = PullRequestData;
+                ListCommitItems.Add(ListItem);
+                
+                ListCommitWidget->AddSlot()
+                    .AutoHeight()
+                    .Padding(10)
+                    [
+                        SNew(STextBlock)
+                        .Text(FText::FromString(FString::Printf(TEXT("%s"), *Item.commit.message)))
+                    ];
+            }
+            DockTab->SetLabel(FText::FromString(FString::Printf(TEXT("Commits (%d)"), ListCommitItems.Num())));
+            UGithubApi::ListCommitFromPull(OnCommitList, PullRequestData->Info.number, Page + 1);
+
+        });
+
+    UGithubApi::ListCommitFromPull(OnCommitList, PullRequestData->Info.number, Page);
+    return DockTab;
 }
 
 TSharedRef<SDockTab> SPullRequestEditor::CreateListfilesTab(const FSpawnTabArgs& Args)
@@ -111,36 +271,13 @@ TSharedRef<SDockTab> SPullRequestEditor::CreateListfilesTab(const FSpawnTabArgs&
             .ScrollbarVisibility(EVisibility::Visible);
     }
 
-
-    int Page = 1;
-    ListFileItems.Empty();
-    FOnFilesListAvailable UpdateListFile;
-    UpdateListFile = FOnFilesListAvailable::CreateLambda([this, Page, UpdateListFile](const TArray<FFileChangeInformation>& Files, int Code, const FString& Content)
-        {
-            if (Files.IsEmpty())
-                return;
-            for (auto& Item : Files)
-            {
-                auto ListItem = MakeShared<FFileItem>();
-                ListItem->Info = Item;
-                ListItem->PRInfo = PullRequestData;
-                ListFileItems.Add(ListItem);
-            }
-            if (ListFileWidget.IsValid())
-                ListFileWidget->RequestListRefresh();
-            UGithubApi::GetFilesInPullRequest(PullRequestData->Info.number, UpdateListFile, 9999, Page + 1);
-
-        });
-
-    UGithubApi::GetFilesInPullRequest(PullRequestData->Info.number, UpdateListFile);
-
     auto NewWidget = SNew(SVerticalBox)
         +SVerticalBox::Slot()
         .AutoHeight()
         .Padding(10.0f)
         [
-                SNew(SSearchBox)
-                    .OnTextCommitted(this, &SPullRequestEditor::OnFilterTextCommitted)
+            SNew(SSearchBox)
+            .OnTextCommitted(this, &SPullRequestEditor::OnFilterTextCommitted)
         ]
         +SVerticalBox::Slot()
         .Padding(10.0f)
@@ -151,11 +288,36 @@ TSharedRef<SDockTab> SPullRequestEditor::CreateListfilesTab(const FSpawnTabArgs&
             ListFileWidget.ToSharedRef()
         ];
 
-    return SNew(SDockTab)
+    auto DockTab = SNew(SDockTab)
+        .OnCanCloseTab_Lambda([](){return false;})
         .TabRole(ETabRole::PanelTab)
         [
             NewWidget
         ];
+
+    int Page = 1;
+    ListFileItems.Empty();
+    FOnFilesListAvailable UpdateListFile;
+    UpdateListFile = FOnFilesListAvailable::CreateLambda([this, Page, UpdateListFile, DockTab](const TArray<FFileChangeInformation>& Files, int Code, const FString& Content)
+        {
+            if (Files.IsEmpty())
+                return;
+            for (auto& Item : Files)
+            {
+                auto ListItem = MakeShared<FFileItem>();
+                ListItem->Info = Item;
+                ListItem->PRInfo = PullRequestData;
+                ListFileItems.Add(ListItem);
+            }
+            DockTab->SetLabel(FText::FromString(FString::Printf(TEXT("Files changed (%d)"), ListFileItems.Num())));
+            if (ListFileWidget.IsValid())
+                ListFileWidget->RequestListRefresh();
+            UGithubApi::GetFilesInPullRequest(PullRequestData->Info.number, UpdateListFile, 9999, Page + 1);
+
+        });
+
+    UGithubApi::GetFilesInPullRequest(PullRequestData->Info.number, UpdateListFile);
+    return DockTab;
 }
 
 TSharedRef<SDockTab> SPullRequestEditor::CreateDescriptionTab(const FSpawnTabArgs& Args)
@@ -163,10 +325,13 @@ TSharedRef<SDockTab> SPullRequestEditor::CreateDescriptionTab(const FSpawnTabArg
 
     auto WidgetTag = SNew(SBox).Padding(10.0f)
         [
-            SNew(STextBlock)
-            .Text(FText::FromString(TEXT("CreateDescriptionTab")))
+            SNew(SRichTextBlock)
+            .DecoratorStyleSet(&FEditorStyle::Get())
+            .Text(FText::FromString(PullRequestData->Info.body))
+            .TextStyle(&FCoreStyle::Get().GetWidgetStyle<FTextBlockStyle>( "Text.Large" ))
         ];
     return SNew(SDockTab)
+        .OnCanCloseTab_Lambda([](){return false;})
         .TabRole(ETabRole::PanelTab)
         [
             WidgetTag
@@ -175,6 +340,9 @@ TSharedRef<SDockTab> SPullRequestEditor::CreateDescriptionTab(const FSpawnTabArg
 
 void SPullRequestEditor::OnFilterTextCommitted(const FText& InFilterText, ETextCommit::Type InCommitType)
 {
+    if (InCommitType != ETextCommit::OnEnter)
+        return;
+
 }
 
 TSharedRef<ITableRow> SPullRequestEditor::GenerateFileRowWidget(TSharedPtr<FFileItem> InItem, const TSharedRef<class STableViewBase>& OwnerTable)
