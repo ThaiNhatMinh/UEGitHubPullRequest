@@ -104,7 +104,10 @@ public:
     void CleanCache();
     void OnFilterTextCommitted(const FText& InFilterText, ETextCommit::Type InCommitType);
     void OnStateChanged(FName InItem, ESelectInfo::Type InSeletionInfo);
+private:
+
     FText GetSelectedStateAsText() const;
+    FText GetCleanCacheTooltip() const;
 
 private:
     TSharedPtr<SWidget> Toolbar;
