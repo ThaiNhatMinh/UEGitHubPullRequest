@@ -56,9 +56,13 @@ public:
         SLATE_ARGUMENT(TSharedPtr<FPullRequestItem>, PullRequestId)
     SLATE_END_ARGS()
     void Construct(const FArguments& InArgs, const TSharedRef<SDockTab>& ConstructUnderMajorTab);
+    ~SPullRequestEditor();
 
     void ReviewChanges() {};
-
+    void Checkout();
+    void Refresh();
+    void OnCheckoutComplete(const FSourceControlOperationRef& InOperation, ECommandResult::Type InResult);
+    void OnFilesListAvailable(const TArray<FFileChangeInformation>& Files, int Code, const FString& Content, int Page);
 
     TSharedRef<SDockTab> CreateListfilesTab(const FSpawnTabArgs& Args);
     TSharedRef<SDockTab> CreateDescriptionTab(const FSpawnTabArgs& Args);
@@ -77,6 +81,8 @@ protected:
     TArray<TSharedPtr<FCommitItem>> ListCommitItems;
     FOpenDiffAssetStatusEffect OpenDiffStatus;
     TSharedPtr<SWidget> Toolbar;
+
+    TArray<TWeakObjectPtr<UPackage>> OpenedFiles;
 };
 
 
