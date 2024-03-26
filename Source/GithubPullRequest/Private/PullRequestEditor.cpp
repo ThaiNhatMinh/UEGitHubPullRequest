@@ -7,6 +7,12 @@
 #include "Widgets/Text/SRichTextBlock.h"
 #include "Brushes/SlateDynamicImageBrush.h"
 #include "Widgets/Input/SComboBox.h"
+
+#include "ISourceControlOperation.h"
+#include "SourceControlOperations.h"
+#include "ISourceControlProvider.h"
+#include "ISourceControlModule.h"
+
 #include "GithubApi.h"
 
 #include "IAssetTools.h"
@@ -23,7 +29,7 @@ void SReviewChanges::Construct(const FArguments& InArgs)
 {
     PullRequestData = InArgs._PullRequestId;
     SAssignNew(CommentWidget, SMultiLineEditableText)
-        .Text(FText::FromString(TEXT("ASDASDSDSD")))
+        .Text(FText::FromString(TEXT("")))
         .WrapTextAt(200.0f);
 
     ChildSlot
@@ -102,6 +108,24 @@ void SPullRequestEditor::Construct(const FArguments& InArgs, const TSharedRef<SD
         LOCTEXT("SPullRequestsEditor", "Review changes"),
         LOCTEXT("SPullRequestsEditor", "Comments/Approve/Request change"),
         FSlateIcon(FAppStyle::Get().GetStyleSetName(), "BlueprintDiff.ToolbarIcon"));
+    ToolBarBuilder.AddToolBarButton(
+        FUIAction(
+            FExecuteAction::CreateSP(this, &SPullRequestEditor::Checkout)
+        )
+        , NAME_None
+        , LOCTEXT("SPullRequestsEditor", "Checkout")
+        , LOCTEXT("SPullRequestsEditor", "Checkout to Pullrequest branch")
+        , FSlateIcon(FEditorStyle::GetStyleSetName(), "SourceControl.Actions.CheckOut")
+    );
+    ToolBarBuilder.AddToolBarButton(
+        FUIAction(
+            FExecuteAction::CreateSP(this, &SPullRequestEditor::Refresh)
+        )
+        , NAME_None
+        , LOCTEXT("SPullRequestsEditor", "Refresh")
+        , LOCTEXT("SPullRequestsEditor", "Refresh pull request")
+        , FSlateIcon(FEditorStyle::GetStyleSetName(), "SourceControl.Actions.Refresh")
+    );
     // Set up a tab view so we can split the content into different views
     TabManager = FGlobalTabmanager::Get()->NewTabManager(ConstructUnderMajorTab);
 
@@ -195,9 +219,31 @@ void SPullRequestEditor::Construct(const FArguments& InArgs, const TSharedRef<SD
 		];
 }
 
+SPullRequestEditor::~SPullRequestEditor()
+{
+    for (auto& File : OpenedFiles)
+    {
+        auto Package = File.Get();
+        if (!IsValid(Package))
+            continue;
+        // Detach the linkers of any loaded packages so that SCC can overwrite the files...
+        if (!Package->IsFullyLoaded())
+        {
+            FlushAsyncLoading();
+            Package->FullyLoad();
+        }
+        ResetLoaders(Package);
+    }
+}
+
 TSharedRef<SWidget> SPullRequestEditor::MakeReviewChanges()
 {
     return SNew(SReviewChanges).PullRequestId(PullRequestData);
+}
+
+void SPullRequestEditor::Refresh()
+{
+
 }
 
 TSharedRef<SDockTab> SPullRequestEditor::CreateCommitsTab(const FSpawnTabArgs& Args)
@@ -240,7 +286,7 @@ TSharedRef<SDockTab> SPullRequestEditor::CreateCommitsTab(const FSpawnTabArgs& A
                 ListItem->CommitInfo = Item;
                 ListItem->PRInfo = PullRequestData;
                 ListCommitItems.Add(ListItem);
-                
+
                 ListCommitWidget->AddSlot()
                     .AutoHeight()
                     .Padding(10)
@@ -291,33 +337,32 @@ TSharedRef<SDockTab> SPullRequestEditor::CreateListfilesTab(const FSpawnTabArgs&
     auto DockTab = SNew(SDockTab)
         .OnCanCloseTab_Lambda([](){return false;})
         .TabRole(ETabRole::PanelTab)
+        .Label_Lambda([this](){return FText::FromString(FString::Printf(TEXT("Files changed (%d)"), ListFileItems.Num()));})
         [
             NewWidget
         ];
 
     int Page = 1;
     ListFileItems.Empty();
-    FOnFilesListAvailable UpdateListFile;
-    UpdateListFile = FOnFilesListAvailable::CreateLambda([this, Page, UpdateListFile, DockTab](const TArray<FFileChangeInformation>& Files, int Code, const FString& Content)
-        {
-            if (Files.IsEmpty())
-                return;
-            for (auto& Item : Files)
-            {
-                auto ListItem = MakeShared<FFileItem>();
-                ListItem->Info = Item;
-                ListItem->PRInfo = PullRequestData;
-                ListFileItems.Add(ListItem);
-            }
-            DockTab->SetLabel(FText::FromString(FString::Printf(TEXT("Files changed (%d)"), ListFileItems.Num())));
-            if (ListFileWidget.IsValid())
-                ListFileWidget->RequestListRefresh();
-            UGithubApi::GetFilesInPullRequest(PullRequestData->Info.number, UpdateListFile, 9999, Page + 1);
 
-        });
-
-    UGithubApi::GetFilesInPullRequest(PullRequestData->Info.number, UpdateListFile);
+    UGithubApi::GetFilesInPullRequest(PullRequestData->Info.number, FOnFilesListAvailable::CreateRaw(this, &SPullRequestEditor::OnFilesListAvailable, Page));
     return DockTab;
+}
+
+void SPullRequestEditor::OnFilesListAvailable(const TArray<FFileChangeInformation>& Files, int Code, const FString& Content, int Page)
+{
+    if (Files.IsEmpty())
+        return;
+    for (auto& Item : Files)
+    {
+        auto ListItem = MakeShared<FFileItem>();
+        ListItem->Info = Item;
+        ListItem->PRInfo = PullRequestData;
+        ListFileItems.Add(ListItem);
+    }
+    if (ListFileWidget.IsValid())
+        ListFileWidget->RequestListRefresh();
+    UGithubApi::GetFilesInPullRequest(PullRequestData->Info.number, FOnFilesListAvailable::CreateRaw(this, &SPullRequestEditor::OnFilesListAvailable, Page + 1), 9999, Page + 1);
 }
 
 TSharedRef<SDockTab> SPullRequestEditor::CreateDescriptionTab(const FSpawnTabArgs& Args)
@@ -343,6 +388,15 @@ void SPullRequestEditor::OnFilterTextCommitted(const FText& InFilterText, ETextC
     if (InCommitType != ETextCommit::OnEnter)
         return;
 
+}
+
+void SPullRequestEditor::Checkout()
+{
+    const UPackage* TransientPackage = GetTransientPackage();
+}
+
+void SPullRequestEditor::OnCheckoutComplete(const FSourceControlOperationRef& InOperation, ECommandResult::Type InResult)
+{
 }
 
 TSharedRef<ITableRow> SPullRequestEditor::GenerateFileRowWidget(TSharedPtr<FFileItem> InItem, const TSharedRef<class STableViewBase>& OwnerTable)
@@ -434,12 +488,14 @@ void SPullRequestEditor::OpenDiff()
     {
         HeadTempPkg = LoadPackage(NULL, *OpenDiffStatus.HeadVersionFile, LOAD_ForDiff | LOAD_DisableCompileOnLoad);
         HeadAsset = FindObject<UObject>(HeadTempPkg, *AssetName);
+        OpenedFiles.AddUnique(HeadTempPkg);
     }
 
     if (OpenDiffStatus.bBaseVersionDownloadSuccess)
     {
         BaseTempPkg = LoadPackage(NULL, *OpenDiffStatus.BaseVersionFile, LOAD_ForDiff | LOAD_DisableCompileOnLoad);
         BaseAsset = FindObject<UObject>(BaseTempPkg, *AssetName);
+        OpenedFiles.AddUnique(BaseTempPkg);
     }
 
     FAssetToolsModule& AssetToolsModule = FModuleManager::LoadModuleChecked<FAssetToolsModule>(TEXT("AssetTools"));
@@ -510,7 +566,7 @@ void SPullRequestsEditor::Construct(const FArguments& InArgs, const FTabId& Cons
 
     const auto GithubPRList = TabManager->RestoreFrom(DefaultLayout, ConstructUnderWindow).ToSharedRef();
 
-    Toolbar = 
+    Toolbar =
         SNew(SHorizontalBox)
         +SHorizontalBox::Slot()
         [
@@ -635,12 +691,16 @@ void SPullRequestsEditor::OnMarkerListDoubleClicked(TSharedPtr<FPullRequestItem>
 {
     TSharedPtr<SDockTab> NewTab = SNew(SDockTab).Label(FText::FromString(Entry->Info.title))
         [
-            // add a wrapper widget here, that says the name of the object/component for pinned tabs 
             SNew(SPullRequestEditor, MajorTab.ToSharedRef()).PullRequestId(Entry)
         ];
 
+    FName TabId = *FString::Printf(TEXT("GithubPR_%d"), (int32)Entry->Info.number);
+    if(TSharedPtr<SDockTab> ActiveTab = TabManager->FindExistingLiveTab(TabId))
+    {
+        ActiveTab->RequestCloseTab();
+    }
 
-    TabManager->InsertNewDocumentTab(GithubPR_List_TabId, FTabManager::FRequireClosedTab(), NewTab.ToSharedRef());
+    TabManager->InsertNewDocumentTab(GithubPR_List_TabId, TabId, FTabManager::FRequireClosedTab(), NewTab.ToSharedRef());
 }
 
 void SPullRequestsEditor::RefreshPullRequest()

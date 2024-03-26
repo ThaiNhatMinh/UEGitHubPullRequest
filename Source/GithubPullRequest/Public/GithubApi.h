@@ -116,7 +116,7 @@ struct FPullRequestInformation
 	FString html_url;
 
 	UPROPERTY()
-	int number;
+	int number = 0;
 	UPROPERTY()
 	FString state;
 	UPROPERTY()
@@ -159,15 +159,15 @@ struct FReviewComment
 	UPROPERTY()
 	FString path;
 	UPROPERTY()
-	int position;
+	int position = 0;
 	UPROPERTY()
 	FString body;
 	UPROPERTY()
-	int line;
+	int line = 0;
 	UPROPERTY()
 	FString side;
 	UPROPERTY()
-	int start_line;
+	int start_line = 0;
 	UPROPERTY()
 	FString start_side;
 };
@@ -221,7 +221,7 @@ struct FCommitVerification
 	GENERATED_BODY();
 
 	UPROPERTY()
-	bool verified;
+	bool verified = false;
 
 	UPROPERTY()
 	FString reason;
@@ -254,7 +254,7 @@ struct FCommit
 	FCommitTree tree;
 
 	UPROPERTY()
-	int comment_count;
+	int comment_count = 0;
 
 	UPROPERTY()
 	FCommitVerification verification;
@@ -267,7 +267,7 @@ struct FCommitUserDetail
 	UPROPERTY()
     FString login;
     UPROPERTY()
-    int id;
+    int id = 0;
     UPROPERTY()
     FString node_id;
     UPROPERTY()
@@ -299,7 +299,7 @@ struct FCommitUserDetail
     UPROPERTY()
     FString type;
     UPROPERTY()
-    bool site_admin;
+    bool site_admin = false;
 };
 
 USTRUCT()
@@ -321,11 +321,11 @@ struct FCommitFile
 	UPROPERTY()
 	FString filename;
 	UPROPERTY()
-	int additions;
+	int additions = 0;
 	UPROPERTY()
-	int deletions;
+	int deletions = 0;
 	UPROPERTY()
-	int changes;
+	int changes = 0;
 	UPROPERTY()
 	FString status;
 	UPROPERTY()
