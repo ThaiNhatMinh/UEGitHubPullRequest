@@ -538,13 +538,16 @@ void SPullRequestsEditor::Construct(const FArguments& InArgs, const FTabId& Cons
         , LOCTEXT("PrevDiffTooltip", "Refresh pull request list")
         , FSlateIcon(FEditorStyle::GetStyleSetName(), "Icons.Refresh")
     );
+
+    TAttribute<FText> TooltipAttribute;
+    TooltipAttribute.BindRaw(this, &SPullRequestsEditor::GetCleanCacheTooltip);
     ToolBarBuilder.AddToolBarButton(
         FUIAction(
             FExecuteAction::CreateSP(this, &SPullRequestsEditor::CleanCache)
         )
         , NAME_None
         , LOCTEXT("SPullRequestsEditor", "Clean cache")
-        , LOCTEXT("SPullRequestsEditor", "Remove cache in save dir")
+        ,  TooltipAttribute
         , FSlateIcon(FEditorStyle::GetStyleSetName(), "ContentReference.Clear")
     );
 
@@ -730,6 +733,18 @@ void SPullRequestsEditor::RefreshPullRequest()
 
 void SPullRequestsEditor::CleanCache()
 {
+    IFileManager& FileManager = IFileManager::Get();
+    TArray<FString> Files;
+    auto CacheDir = FPaths::DiffDir();
+    FileManager.FindFiles(Files, *CacheDir);
+    for (auto& File : Files)
+    {
+        if (!FileManager.Delete(*FPaths::Combine(CacheDir, File)))
+        {
+            UE_LOG(LogTemp, Warning, TEXT("Can not delete file: %s"), *File);
+        }
+    }
+
 }
 
 void SPullRequestsEditor::OnFilterTextCommitted(const FText& InFilterText, ETextCommit::Type InCommitType)
@@ -746,6 +761,15 @@ FText SPullRequestsEditor::GetSelectedStateAsText() const
     return FText::FromName(QueryState);
 }
 
+FText SPullRequestsEditor::GetCleanCacheTooltip() const
+{
+    auto CacheDir = FPaths::DiffDir();
+    IFileManager& FileManager = IFileManager::Get();
+    TArray<FString> Files;
+    FileManager.FindFiles(Files, *CacheDir);
+
+    return FText::FromString(FString::Printf(TEXT("Remove cache in save dir (%d files)"), Files.Num()));
+}
 
 void SPullRequestRow::Construct(const FArguments& InArgs, const TSharedRef<STableViewBase>& InOwnerTableView, TSharedPtr<FPullRequestItem> InItem)
 {
