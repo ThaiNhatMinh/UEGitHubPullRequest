@@ -174,50 +174,165 @@ void SPullRequestEditor::Construct(const FArguments& InArgs, const TSharedRef<SD
 		    .Padding(FMargin(0.0f))
 		];
 
-	ChildSlot
-		[
+    // Determine state color (GitHub-style)
+    FLinearColor StateColor;
+    FString StateText = PullRequestData->Info.state;
+    if (StateText.ToLower() == "open")
+    {
+        StateColor = FLinearColor(0.24f, 0.54f, 0.25f, 1.0f); // Green
+        StateText = "Open";
+    }
+    else if (StateText.ToLower() == "closed")
+    {
+        StateColor = FLinearColor(0.82f, 0.15f, 0.15f, 1.0f); // Red
+        StateText = "Closed";
+    }
+    else if (StateText.ToLower() == "merged")
+    {
+        StateColor = FLinearColor(0.54f, 0.24f, 0.70f, 1.0f); // Purple
+        StateText = "Merged";
+    }
+    else
+    {
+        StateColor = FLinearColor(0.5f, 0.5f, 0.5f, 1.0f); // Gray
+    }
+
+    ChildSlot
+    [
+        SNew(SVerticalBox)
+        // Header section
+        + SVerticalBox::Slot()
+        .AutoHeight()
+        .Padding(20, 16, 20, 8)
+        [
             SNew(SVerticalBox)
-            +SVerticalBox::Slot()
-                .AutoHeight()
-                .Padding(20)
-                [
-                    SNew(STextBlock)
-                    .Text(FText::FromString(FString::Printf(TEXT("%s #%d"), *PullRequestData->Info.title, PullRequestData->Info.number)))
-                    .HighlightText(FText::FromString(FString::Printf(TEXT("#%d"), PullRequestData->Info.number)))
-                    .Font(FCoreStyle::GetDefaultFontStyle("Bold", 20))
-                ]
+            // Title row: Title + PR Number
             + SVerticalBox::Slot()
-                .Padding(20, 0)
-                .AutoHeight()
+            .AutoHeight()
+            [
+                SNew(SHorizontalBox)
+                + SHorizontalBox::Slot()
+                .AutoWidth()
+                .VAlign(VAlign_Center)
                 [
                     SNew(STextBlock)
-                    .Text(FText::FromString(FString::Printf(TEXT("%s"), *PullRequestData->Info.state)))
-                    .HighlightText(FText::FromString(FString::Printf(TEXT("%s"), *PullRequestData->Info.state)))
-                    .Font(FCoreStyle::GetDefaultFontStyle("Normal", 15))
+                    .Text(FText::FromString(PullRequestData->Info.title))
+                    .Font(FCoreStyle::GetDefaultFontStyle("Bold", 24))
                 ]
-            +SVerticalBox::Slot()
-                .AutoHeight()
-                .Padding(0.0f, 2.0f, 0.0f, 2.0f)
+                + SHorizontalBox::Slot()
+                .AutoWidth()
+                .VAlign(VAlign_Center)
+                .Padding(10, 0, 0, 0)
                 [
-                    SNew(SHorizontalBox)
-                    + SHorizontalBox::Slot()
-                    .Padding(10.f)
-                    .AutoWidth()
-                    [
-                        Toolbar.ToSharedRef()
-                    ]
+                    SNew(STextBlock)
+                    .Text(FText::FromString(FString::Printf(TEXT("#%d"), PullRequestData->Info.number)))
+                    .Font(FCoreStyle::GetDefaultFontStyle("Regular", 24))
+                    .ColorAndOpacity(FSlateColor::UseSubduedForeground())
                 ]
-            +SVerticalBox::Slot()
-                .Padding(10.f)
-                .FillHeight(1)
+            ]
+            // Info row: State badge + Author + Branch info
+            + SVerticalBox::Slot()
+            .AutoHeight()
+            .Padding(0, 8, 0, 0)
+            [
+                SNew(SHorizontalBox)
+                // State badge
+                + SHorizontalBox::Slot()
+                .AutoWidth()
+                .VAlign(VAlign_Center)
                 [
                     SNew(SBorder)
-                    .Padding(10)
+                    .BorderImage(FCoreStyle::Get().GetBrush("WhiteBrush"))
+                    .BorderBackgroundColor(StateColor)
+                    .Padding(FMargin(10, 4))
                     [
-                        GithubPRView
+                        SNew(STextBlock)
+                        .Text(FText::FromString(StateText))
+                        .Font(FCoreStyle::GetDefaultFontStyle("Bold", 10))
+                        .ColorAndOpacity(FLinearColor::White)
                     ]
                 ]
-		];
+                // Author info
+                + SHorizontalBox::Slot()
+                .AutoWidth()
+                .VAlign(VAlign_Center)
+                .Padding(12, 0, 0, 0)
+                [
+                    SNew(STextBlock)
+                    .Text(FText::FromString(FString::Printf(TEXT("%s wants to merge into"), *PullRequestData->Info.user.login)))
+                    .Font(FCoreStyle::GetDefaultFontStyle("Regular", 24))
+                    .ColorAndOpacity(FSlateColor::UseSubduedForeground())
+                ]
+                // Base branch
+                + SHorizontalBox::Slot()
+                .AutoWidth()
+                .VAlign(VAlign_Center)
+                .Padding(6, 0, 0, 0)
+                [
+                    SNew(SBorder)
+                    .BorderImage(FAppStyle::Get().GetBrush("ToolPanel.DarkGroupBorder"))
+                    .Padding(FMargin(6, 2))
+                    [
+                        SNew(STextBlock)
+                        .Text(FText::FromString(PullRequestData->Info.base.ref))
+                        .Font(FCoreStyle::GetDefaultFontStyle("Mono", 9))
+                        .ColorAndOpacity(FLinearColor(0.3f, 0.5f, 0.8f, 1.0f))
+                    ]
+                ]
+                // Arrow
+                + SHorizontalBox::Slot()
+                .AutoWidth()
+                .VAlign(VAlign_Center)
+                .Padding(6, 0)
+                [
+                    SNew(STextBlock)
+                    .Text(FText::FromString(TEXT("\u2190")))
+                    .Font(FCoreStyle::GetDefaultFontStyle("Regular", 10))
+                    .ColorAndOpacity(FSlateColor::UseSubduedForeground())
+                ]
+                // Head branch
+                + SHorizontalBox::Slot()
+                .AutoWidth()
+                .VAlign(VAlign_Center)
+                [
+                    SNew(SBorder)
+                    .BorderImage(FAppStyle::Get().GetBrush("ToolPanel.DarkGroupBorder"))
+                    .Padding(FMargin(6, 2))
+                    [
+                        SNew(STextBlock)
+                        .Text(FText::FromString(PullRequestData->Info.head.ref))
+                        .Font(FCoreStyle::GetDefaultFontStyle("Mono", 9))
+                        .ColorAndOpacity(FLinearColor(0.3f, 0.5f, 0.8f, 1.0f))
+                    ]
+                ]
+            ]
+        ]
+        // Separator
+        + SVerticalBox::Slot()
+        .AutoHeight()
+        .Padding(20, 0)
+        [
+            SNew(SSeparator)
+        ]
+        // Toolbar
+        + SVerticalBox::Slot()
+        .AutoHeight()
+        .Padding(10, 8)
+        [
+            Toolbar.ToSharedRef()
+        ]
+        // Main content
+        + SVerticalBox::Slot()
+        .Padding(10.f)
+        .FillHeight(1)
+        [
+            SNew(SBorder)
+            .Padding(10)
+            [
+                GithubPRView
+            ]
+        ]
+    ];
 }
 
 SPullRequestEditor::~SPullRequestEditor()
@@ -247,6 +362,157 @@ void SPullRequestEditor::Refresh()
 
 }
 
+TSharedRef<SWidget> SPullRequestEditor::CreateCommitRowWidget(const FCommitFullData& CommitData)
+{
+    // Get short SHA (first 7 characters)
+    FString ShortSha = CommitData.sha.Left(7);
+
+    // Get author name - prefer login, fallback to commit author name
+    FString AuthorName = CommitData.author.login.IsEmpty() ? CommitData.commit.author.name : CommitData.author.login;
+
+    // Get first line of commit message as title
+    FString CommitTitle = CommitData.commit.message;
+    int32 NewlineIndex;
+    if (CommitTitle.FindChar('\n', NewlineIndex))
+    {
+        CommitTitle = CommitTitle.Left(NewlineIndex);
+    }
+
+    // Parse and format date
+    FString DateStr = CommitData.commit.author.date;
+    FDateTime DateTime;
+    FString FormattedDate = DateStr;
+    if (FDateTime::ParseIso8601(*DateStr, DateTime))
+    {
+        FormattedDate = DateTime.ToString(TEXT("%b %d, %Y"));
+    }
+
+    // Get author initials for avatar placeholder
+    FString Initials;
+    if (!AuthorName.IsEmpty())
+    {
+        TArray<FString> NameParts;
+        AuthorName.ParseIntoArray(NameParts, TEXT(" "), true);
+        if (NameParts.Num() > 0)
+        {
+            Initials = NameParts[0].Left(1).ToUpper();
+            if (NameParts.Num() > 1)
+            {
+                Initials += NameParts.Last().Left(1).ToUpper();
+            }
+        }
+    }
+
+    // GitHub-style green color for commit indicator
+    FLinearColor CommitColor = FLinearColor(0.24f, 0.54f, 0.25f, 1.0f); // Green similar to GitHub
+
+    return SNew(SBorder)
+        .BorderImage(FAppStyle::Get().GetBrush("ToolPanel.GroupBorder"))
+        .BorderBackgroundColor(FLinearColor(0.02f, 0.02f, 0.02f, 1.0f))
+        .Padding(0)
+        [
+            SNew(SHorizontalBox)
+            // Left color bar (GitHub-style commit indicator)
+            + SHorizontalBox::Slot()
+            .AutoWidth()
+            [
+                SNew(SBox)
+                .WidthOverride(4)
+                [
+                    SNew(SBorder)
+                    .BorderImage(FCoreStyle::Get().GetBrush("WhiteBrush"))
+                    .BorderBackgroundColor(CommitColor)
+                ]
+            ]
+            // Main content
+            + SHorizontalBox::Slot()
+            .FillWidth(1.0f)
+            .Padding(FMargin(12, 8))
+            [
+                SNew(SHorizontalBox)
+                // Avatar placeholder (circle with initials)
+                + SHorizontalBox::Slot()
+                .AutoWidth()
+                .VAlign(VAlign_Top)
+                .Padding(0, 0, 12, 0)
+                [
+                    SNew(SBox)
+                    .WidthOverride(32)
+                    .HeightOverride(32)
+                    [
+                        SNew(SBorder)
+                        .BorderImage(FCoreStyle::Get().GetBrush("WhiteBrush"))
+                        .BorderBackgroundColor(CommitColor)
+                        .HAlign(HAlign_Center)
+                        .VAlign(VAlign_Center)
+                        [
+                            SNew(STextBlock)
+                            .Text(FText::FromString(Initials))
+                            .Font(FCoreStyle::GetDefaultFontStyle("Bold", 10))
+                            .ColorAndOpacity(FLinearColor::White)
+                        ]
+                    ]
+                ]
+                // Commit info
+                + SHorizontalBox::Slot()
+                .FillWidth(1.0f)
+                .VAlign(VAlign_Center)
+                [
+                    SNew(SVerticalBox)
+                    // Commit title (first line of message)
+                    + SVerticalBox::Slot()
+                    .AutoHeight()
+                    [
+                        SNew(STextBlock)
+                        .Text(FText::FromString(CommitTitle))
+                        .Font(FCoreStyle::GetDefaultFontStyle("Bold", 10))
+                        .AutoWrapText(true)
+                    ]
+                    // Author and date
+                    + SVerticalBox::Slot()
+                    .AutoHeight()
+                    .Padding(0, 4, 0, 0)
+                    [
+                        SNew(SHorizontalBox)
+                        + SHorizontalBox::Slot()
+                        .AutoWidth()
+                        [
+                            SNew(STextBlock)
+                            .Text(FText::FromString(AuthorName))
+                            .ColorAndOpacity(FSlateColor::UseSubduedForeground())
+                            .Font(FCoreStyle::GetDefaultFontStyle("Regular", 9))
+                        ]
+                        + SHorizontalBox::Slot()
+                        .AutoWidth()
+                        .Padding(8, 0, 0, 0)
+                        [
+                            SNew(STextBlock)
+                            .Text(FText::FromString(FormattedDate))
+                            .ColorAndOpacity(FSlateColor::UseSubduedForeground())
+                            .Font(FCoreStyle::GetDefaultFontStyle("Regular", 9))
+                        ]
+                    ]
+                ]
+                // SHA
+                + SHorizontalBox::Slot()
+                .AutoWidth()
+                .VAlign(VAlign_Center)
+                .Padding(12, 0, 0, 0)
+                [
+                    SNew(SBorder)
+                    .BorderImage(FAppStyle::Get().GetBrush("ToolPanel.DarkGroupBorder"))
+                    .Padding(FMargin(8, 4))
+                    [
+                        SNew(STextBlock)
+                        .Text(FText::FromString(ShortSha))
+                        .Font(FCoreStyle::GetDefaultFontStyle("Mono", 9))
+                        .ColorAndOpacity(FSlateColor::UseSubduedForeground())
+                    ]
+                ]
+            ]
+        ];
+}
+
 TSharedRef<SDockTab> SPullRequestEditor::CreateCommitsTab(const FSpawnTabArgs& Args)
 {
     auto ListCommitWidget = SNew(SVerticalBox);
@@ -264,7 +530,11 @@ TSharedRef<SDockTab> SPullRequestEditor::CreateCommitsTab(const FSpawnTabArgs& A
         .VAlign(VAlign_Fill)
         .FillHeight(1)
         [
-            ListCommitWidget
+            SNew(SScrollBox)
+            + SScrollBox::Slot()
+            [
+                ListCommitWidget
+            ]
         ];
 
     auto DockTab = SNew(SDockTab)
@@ -290,10 +560,9 @@ TSharedRef<SDockTab> SPullRequestEditor::CreateCommitsTab(const FSpawnTabArgs& A
 
                 ListCommitWidget->AddSlot()
                     .AutoHeight()
-                    .Padding(10)
+                    .Padding(2)
                     [
-                        SNew(STextBlock)
-                        .Text(FText::FromString(FString::Printf(TEXT("%s"), *Item.commit.message)))
+                        CreateCommitRowWidget(Item)
                     ];
             }
             DockTab->SetLabel(FText::FromString(FString::Printf(TEXT("Commits (%d)"), ListCommitItems.Num())));
@@ -617,34 +886,66 @@ void SPullRequestsEditor::Construct(const FArguments& InArgs, const FTabId& Cons
                 [
                     SNew(SScrollBox)
                     + SScrollBox::Slot()
+                    .Padding(0, 0, 0, 10)
                     [
-                        SNew(SHorizontalBox)
-                        +SHorizontalBox::Slot()
+                        SNew(SVerticalBox)
+                        // State filter
+                        + SVerticalBox::Slot()
+                        .AutoHeight()
+                        .Padding(0, 0, 0, 8)
                         [
-                            SNew(SComboBox<FName>)
-                            .OptionsSource(&QueryOptions)
-                            .OnSelectionChanged(this, &SPullRequestsEditor::OnStateChanged)
-                            .OnGenerateWidget_Lambda([](FName State)
-                                {
-                                    return SNew(STextBlock).Text(FText::FromName(State));
-                                })
-                            .Content()
+                            SNew(SVerticalBox)
+                            + SVerticalBox::Slot()
+                            .AutoHeight()
+                            .Padding(0, 0, 0, 4)
                             [
-                                SNew(STextBlock).Text(this, &SPullRequestsEditor::GetSelectedStateAsText)
+                                SNew(STextBlock)
+                                .Text(LOCTEXT("StateFilterLabel", "State"))
+                                .Font(FCoreStyle::GetDefaultFontStyle("Bold", 9))
+                            ]
+                            + SVerticalBox::Slot()
+                            .AutoHeight()
+                            [
+                                SNew(SComboBox<FName>)
+                                .OptionsSource(&QueryOptions)
+                                .OnSelectionChanged(this, &SPullRequestsEditor::OnStateChanged)
+                                .OnGenerateWidget_Lambda([](FName State)
+                                    {
+                                        return SNew(STextBlock).Text(FText::FromName(State));
+                                    })
+                                .Content()
+                                [
+                                    SNew(STextBlock).Text(this, &SPullRequestsEditor::GetSelectedStateAsText)
+                                ]
                             ]
                         ]
-                        +SHorizontalBox::Slot()
+                        // Author filter
+                        + SVerticalBox::Slot()
+                        .AutoHeight()
                         [
-                            SNew(SComboBox<FName>)
-                            .OptionsSource(&QueryOptions)
-                            .OnSelectionChanged(this, &SPullRequestsEditor::OnStateChanged)
-                            .OnGenerateWidget_Lambda([](FName State)
-                                {
-                                    return SNew(STextBlock).Text(FText::FromName(State));
-                                })
-                            .Content()
+                            SNew(SVerticalBox)
+                            + SVerticalBox::Slot()
+                            .AutoHeight()
+                            .Padding(0, 0, 0, 4)
                             [
-                                SNew(STextBlock).Text(this, &SPullRequestsEditor::GetSelectedStateAsText)
+                                SNew(STextBlock)
+                                .Text(LOCTEXT("AuthorFilterLabel", "Author"))
+                                .Font(FCoreStyle::GetDefaultFontStyle("Bold", 9))
+                            ]
+                            + SVerticalBox::Slot()
+                            .AutoHeight()
+                            [
+                                SAssignNew(AuthorComboBox, SComboBox<TSharedPtr<FString>>)
+                                .OptionsSource(&AuthorOptions)
+                                .OnSelectionChanged(this, &SPullRequestsEditor::OnAuthorChanged)
+                                .OnGenerateWidget_Lambda([](TSharedPtr<FString> Author)
+                                    {
+                                        return SNew(STextBlock).Text(FText::FromString(*Author));
+                                    })
+                                .Content()
+                                [
+                                    SNew(STextBlock).Text(this, &SPullRequestsEditor::GetSelectedAuthorAsText)
+                                ]
                             ]
                         ]
                     ]
@@ -713,23 +1014,82 @@ void SPullRequestsEditor::RefreshPullRequest()
     auto State = (EPullRequestQueryState)EnumObject->GetValueByName(QueryState);
 
     FOnPullRequestListAvailable Delegate;
+    AllPullRequestItems.Empty();
     PullRequestItems.Empty();
     int Page = 1;
     Delegate = FOnPullRequestListAvailable::CreateLambda([this, Delegate, State, Page](const TArray<FPullRequestInformation>& ListPullRequest, int Code, const FString& Content)
     {
         if (ListPullRequest.IsEmpty())
+        {
             return;
+        }
         for (auto& Item : ListPullRequest)
         {
             auto ListItem = MakeShared<FPullRequestItem>();
             ListItem->Info = Item;
-            PullRequestItems.Add(ListItem);
+            AllPullRequestItems.Add(ListItem);
         }
         UGithubApi::GetPullRequests(Delegate, State, Page + 1);
-        Widget->RequestListRefresh();
+
+        UpdateAuthorList();
+        ApplyFilters();
     });
 
-	UGithubApi::GetPullRequests(Delegate, State, Page);
+    UGithubApi::GetPullRequests(Delegate, State, Page);
+}
+
+void SPullRequestsEditor::UpdateAuthorList()
+{
+    AuthorOptions.Empty();
+    AuthorOptions.Add(MakeShared<FString>(TEXT("All Authors")));
+
+    TSet<FString> UniqueAuthors;
+    for (const auto& Item : AllPullRequestItems)
+    {
+        if (!Item->Info.user.login.IsEmpty())
+        {
+            UniqueAuthors.Add(Item->Info.user.login);
+        }
+    }
+
+    for (const FString& Author : UniqueAuthors)
+    {
+        AuthorOptions.Add(MakeShared<FString>(Author));
+    }
+
+    if (AuthorComboBox.IsValid())
+    {
+        AuthorComboBox->RefreshOptions();
+    }
+}
+
+void SPullRequestsEditor::ApplyFilters()
+{
+    PullRequestItems.Empty();
+
+    for (const auto& Item : AllPullRequestItems)
+    {
+        bool bPassesFilter = true;
+
+        // Apply author filter
+        if (SelectedAuthor.IsValid() && *SelectedAuthor != TEXT("All Authors"))
+        {
+            if (Item->Info.user.login != *SelectedAuthor)
+            {
+                bPassesFilter = false;
+            }
+        }
+
+        if (bPassesFilter)
+        {
+            PullRequestItems.Add(Item);
+        }
+    }
+
+    if (Widget.IsValid())
+    {
+        Widget->RequestListRefresh();
+    }
 }
 
 void SPullRequestsEditor::CleanCache()
@@ -755,11 +1115,27 @@ void SPullRequestsEditor::OnFilterTextCommitted(const FText& InFilterText, EText
 void SPullRequestsEditor::OnStateChanged(FName InItem, ESelectInfo::Type InSeletionInfo)
 {
     QueryState = InItem;
+    RefreshPullRequest();
+}
+
+void SPullRequestsEditor::OnAuthorChanged(TSharedPtr<FString> InItem, ESelectInfo::Type InSeletionInfo)
+{
+    SelectedAuthor = InItem;
+    ApplyFilters();
 }
 
 FText SPullRequestsEditor::GetSelectedStateAsText() const
 {
     return FText::FromName(QueryState);
+}
+
+FText SPullRequestsEditor::GetSelectedAuthorAsText() const
+{
+    if (SelectedAuthor.IsValid())
+    {
+        return FText::FromString(*SelectedAuthor);
+    }
+    return FText::FromString(TEXT("All Authors"));
 }
 
 FText SPullRequestsEditor::GetCleanCacheTooltip() const

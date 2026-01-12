@@ -69,6 +69,7 @@ public:
     TSharedRef<SDockTab> CreateListfilesTab(const FSpawnTabArgs& Args);
     TSharedRef<SDockTab> CreateDescriptionTab(const FSpawnTabArgs& Args);
     TSharedRef<SDockTab> CreateCommitsTab(const FSpawnTabArgs& Args);
+    TSharedRef<SWidget> CreateCommitRowWidget(const FCommitFullData& CommitData);
     void OnFileDoubleClicked(TSharedPtr<FFileItem> Entry);
     TSharedRef<ITableRow> GenerateFileRowWidget(TSharedPtr<FFileItem> InItem, const TSharedRef<class STableViewBase>& OwnerTable);
     void OpenDiff();
@@ -106,20 +107,28 @@ public:
     void CleanCache();
     void OnFilterTextCommitted(const FText& InFilterText, ETextCommit::Type InCommitType);
     void OnStateChanged(FName InItem, ESelectInfo::Type InSeletionInfo);
-private:
+    void OnAuthorChanged(TSharedPtr<FString> InItem, ESelectInfo::Type InSeletionInfo);
+    void UpdateAuthorList();
+    void ApplyFilters();
 
+private:
     FText GetSelectedStateAsText() const;
+    FText GetSelectedAuthorAsText() const;
     FText GetCleanCacheTooltip() const;
 
 private:
     TSharedPtr<SWidget> Toolbar;
     TSharedPtr<SListView<TSharedPtr<FPullRequestItem>>> Widget;
     TArray<TSharedPtr<FPullRequestItem>> PullRequestItems;
+    TArray<TSharedPtr<FPullRequestItem>> AllPullRequestItems;
     TArray<FName> QueryOptions;
+    TArray<TSharedPtr<FString>> AuthorOptions;
+    TSharedPtr<SComboBox<TSharedPtr<FString>>> AuthorComboBox;
 
     TSharedPtr<FTabManager> TabManager;
     TSharedPtr<SDockTab> MajorTab;
     FName QueryState = "Open";
+    TSharedPtr<FString> SelectedAuthor;
 };
 
 
