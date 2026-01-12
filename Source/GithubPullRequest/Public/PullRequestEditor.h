@@ -63,6 +63,7 @@ public:
     void ReviewChanges() {};
     void Checkout();
     void Refresh();
+    void UpdateInfo(const FPullRequestInformation& PullRequest, int Code, const FString& Content);
     void OnCheckoutComplete(const FSourceControlOperationRef& InOperation, ECommandResult::Type InResult);
     void OnFilesListAvailable(const TArray<FFileChangeInformation>& Files, int Code, const FString& Content, int Page);
 
@@ -76,10 +77,18 @@ public:
     void OnFilterTextCommitted(const FText& InFilterText, ETextCommit::Type InCommitType);
     TSharedRef<SWidget> MakeReviewChanges();
 
+    void UpdateState();
+
 protected:
     TSharedPtr<FPullRequestItem>  PullRequestData;
     TSharedPtr<FTabManager> TabManager;
     TSharedPtr<SListView<TSharedPtr<FFileItem>>> ListFileWidget;
+
+    TSharedPtr<SVerticalBox> ListCommitWidget;
+    TSharedPtr<SBorder> Status;
+    TSharedPtr<STextBlock> StatusText;
+    TSharedPtr<class SRichTextBlock> DescriptionText;
+
     TArray<TSharedPtr<FFileItem>> ListFileItems;
     TArray<TSharedPtr<FCommitItem>> ListCommitItems;
     FOpenDiffAssetStatusEffect OpenDiffStatus;

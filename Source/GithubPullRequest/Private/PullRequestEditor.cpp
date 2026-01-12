@@ -174,29 +174,6 @@ void SPullRequestEditor::Construct(const FArguments& InArgs, const TSharedRef<SD
 		    .Padding(FMargin(0.0f))
 		];
 
-    // Determine state color (GitHub-style)
-    FLinearColor StateColor;
-    FString StateText = PullRequestData->Info.state;
-    if (StateText.ToLower() == "open")
-    {
-        StateColor = FLinearColor(0.24f, 0.54f, 0.25f, 1.0f); // Green
-        StateText = "Open";
-    }
-    else if (StateText.ToLower() == "closed")
-    {
-        StateColor = FLinearColor(0.82f, 0.15f, 0.15f, 1.0f); // Red
-        StateText = "Closed";
-    }
-    else if (StateText.ToLower() == "merged")
-    {
-        StateColor = FLinearColor(0.54f, 0.24f, 0.70f, 1.0f); // Purple
-        StateText = "Merged";
-    }
-    else
-    {
-        StateColor = FLinearColor(0.5f, 0.5f, 0.5f, 1.0f); // Gray
-    }
-
     ChildSlot
     [
         SNew(SVerticalBox)
@@ -241,13 +218,13 @@ void SPullRequestEditor::Construct(const FArguments& InArgs, const TSharedRef<SD
                 .AutoWidth()
                 .VAlign(VAlign_Center)
                 [
-                    SNew(SBorder)
+                    SAssignNew(Status,SBorder)
                     .BorderImage(FCoreStyle::Get().GetBrush("WhiteBrush"))
-                    .BorderBackgroundColor(StateColor)
+                    //.BorderBackgroundColor(StateColor)
                     .Padding(FMargin(10, 4))
                     [
-                        SNew(STextBlock)
-                        .Text(FText::FromString(StateText))
+                        SAssignNew(StatusText, STextBlock)
+                        //.Text(FText::FromString(StateText))
                         .Font(FCoreStyle::GetDefaultFontStyle("Bold", 10))
                         .ColorAndOpacity(FLinearColor::White)
                     ]
@@ -260,7 +237,7 @@ void SPullRequestEditor::Construct(const FArguments& InArgs, const TSharedRef<SD
                 [
                     SNew(STextBlock)
                     .Text(FText::FromString(FString::Printf(TEXT("%s wants to merge into"), *PullRequestData->Info.user.login)))
-                    .Font(FCoreStyle::GetDefaultFontStyle("Regular", 24))
+                    .Font(FCoreStyle::GetDefaultFontStyle("Regular", 10))
                     .ColorAndOpacity(FSlateColor::UseSubduedForeground())
                 ]
                 // Base branch
@@ -333,6 +310,8 @@ void SPullRequestEditor::Construct(const FArguments& InArgs, const TSharedRef<SD
             ]
         ]
     ];
+
+    UpdateState();
 }
 
 SPullRequestEditor::~SPullRequestEditor()
@@ -357,9 +336,89 @@ TSharedRef<SWidget> SPullRequestEditor::MakeReviewChanges()
     return SNew(SReviewChanges).PullRequestId(PullRequestData);
 }
 
+void SPullRequestEditor::UpdateState()
+{
+    // Determine state color (GitHub-style)
+    FLinearColor StateColor;
+    FString StateText = PullRequestData->Info.state;
+    if (StateText.ToLower() == "open")
+    {
+        StateColor = FLinearColor(0.24f, 0.54f, 0.25f, 1.0f); // Green
+        StateText = "Open";
+    }
+    else if (StateText.ToLower() == "closed")
+    {
+        StateColor = FLinearColor(0.82f, 0.15f, 0.15f, 1.0f); // Red
+        StateText = "Closed";
+    }
+    else if (StateText.ToLower() == "merged")
+    {
+        StateColor = FLinearColor(0.54f, 0.24f, 0.70f, 1.0f); // Purple
+        StateText = "Merged";
+    }
+    else
+    {
+        StateColor = FLinearColor(0.5f, 0.5f, 0.5f, 1.0f); // Gray
+    }
+
+    Status->SetBorderBackgroundColor(StateColor);
+    StatusText->SetText(FText::FromString(StateText));
+}
+
 void SPullRequestEditor::Refresh()
 {
+    // Refresh files list
+    ListFileItems.Empty();
+    if (ListFileWidget.IsValid())
+    {
+        ListFileWidget->RequestListRefresh();
+    }
+    UGithubApi::GetFilesInPullRequest(PullRequestData->Info.number, FOnFilesListAvailable::CreateRaw(this, &SPullRequestEditor::OnFilesListAvailable, 1));
 
+    // Refresh commits list
+    ListCommitItems.Empty();
+    if (ListCommitWidget.IsValid())
+    {
+        ListCommitWidget->ClearChildren();
+
+        FOnCommitListAvailable OnCommitList;
+        int Page = 1;
+        TSharedPtr<SVerticalBox> CommitWidgetPtr = ListCommitWidget;
+        OnCommitList = FOnCommitListAvailable::CreateLambda([this, Page, OnCommitList, CommitWidgetPtr](const TArray<FCommitFullData>& Commits, int Code, const FString& Content)
+            {
+                if (Commits.IsEmpty())
+                    return;
+                for (auto& Item : Commits)
+                {
+                    auto ListItem = MakeShared<FCommitItem>();
+                    ListItem->CommitInfo = Item;
+                    ListItem->PRInfo = PullRequestData;
+                    ListCommitItems.Add(ListItem);
+
+                    if (CommitWidgetPtr.IsValid())
+                    {
+                        CommitWidgetPtr->AddSlot()
+                            .AutoHeight()
+                            .Padding(2)
+                            [
+                                CreateCommitRowWidget(Item)
+                            ];
+                    }
+                }
+                UGithubApi::ListCommitFromPull(OnCommitList, PullRequestData->Info.number, Page + 1);
+            });
+
+        UGithubApi::ListCommitFromPull(OnCommitList, PullRequestData->Info.number, Page);
+    }
+
+    UGithubApi::GetPullRequest(FOnPullRequestAvailable::CreateRaw(this, &SPullRequestEditor::UpdateInfo), PullRequestData->Info.number);
+}
+
+void SPullRequestEditor::UpdateInfo(const FPullRequestInformation& PullRequest, int Code, const FString& Content)
+{
+    PullRequestData->Info = PullRequest;
+    DescriptionText->SetText(FText::FromString(PullRequestData->Info.body));
+    UpdateState();
 }
 
 TSharedRef<SWidget> SPullRequestEditor::CreateCommitRowWidget(const FCommitFullData& CommitData)
@@ -515,7 +574,7 @@ TSharedRef<SWidget> SPullRequestEditor::CreateCommitRowWidget(const FCommitFullD
 
 TSharedRef<SDockTab> SPullRequestEditor::CreateCommitsTab(const FSpawnTabArgs& Args)
 {
-    auto ListCommitWidget = SNew(SVerticalBox);
+    SAssignNew(ListCommitWidget, SVerticalBox);
     auto NewWidget = SNew(SVerticalBox)
         +SVerticalBox::Slot()
         .AutoHeight()
@@ -533,13 +592,14 @@ TSharedRef<SDockTab> SPullRequestEditor::CreateCommitsTab(const FSpawnTabArgs& A
             SNew(SScrollBox)
             + SScrollBox::Slot()
             [
-                ListCommitWidget
+                ListCommitWidget.ToSharedRef()
             ]
         ];
 
     auto DockTab = SNew(SDockTab)
         .TabRole(ETabRole::PanelTab)
         .OnCanCloseTab_Lambda([](){return false;})
+        .Label_Lambda([this](){return FText::FromString(FString::Printf(TEXT("Commits (%d)"), ListCommitItems.Num()));})
         [
             NewWidget
         ];
@@ -547,7 +607,8 @@ TSharedRef<SDockTab> SPullRequestEditor::CreateCommitsTab(const FSpawnTabArgs& A
     int Page = 1;
     ListCommitItems.Empty();
     FOnCommitListAvailable OnCommitList;
-    OnCommitList = FOnCommitListAvailable::CreateLambda([this, Page, OnCommitList, DockTab, ListCommitWidget](const TArray<FCommitFullData>& Commits, int Code, const FString& Content)
+    TSharedPtr<SVerticalBox> CommitWidgetPtr = ListCommitWidget;
+    OnCommitList = FOnCommitListAvailable::CreateLambda([this, Page, OnCommitList, CommitWidgetPtr](const TArray<FCommitFullData>& Commits, int Code, const FString& Content)
         {
             if (Commits.IsEmpty())
                 return;
@@ -558,14 +619,16 @@ TSharedRef<SDockTab> SPullRequestEditor::CreateCommitsTab(const FSpawnTabArgs& A
                 ListItem->PRInfo = PullRequestData;
                 ListCommitItems.Add(ListItem);
 
-                ListCommitWidget->AddSlot()
-                    .AutoHeight()
-                    .Padding(2)
-                    [
-                        CreateCommitRowWidget(Item)
-                    ];
+                if (CommitWidgetPtr.IsValid())
+                {
+                    CommitWidgetPtr->AddSlot()
+                        .AutoHeight()
+                        .Padding(2)
+                        [
+                            CreateCommitRowWidget(Item)
+                        ];
+                }
             }
-            DockTab->SetLabel(FText::FromString(FString::Printf(TEXT("Commits (%d)"), ListCommitItems.Num())));
             UGithubApi::ListCommitFromPull(OnCommitList, PullRequestData->Info.number, Page + 1);
 
         });
@@ -637,10 +700,9 @@ void SPullRequestEditor::OnFilesListAvailable(const TArray<FFileChangeInformatio
 
 TSharedRef<SDockTab> SPullRequestEditor::CreateDescriptionTab(const FSpawnTabArgs& Args)
 {
-
     auto WidgetTag = SNew(SBox).Padding(10.0f)
         [
-            SNew(SRichTextBlock)
+            SAssignNew(DescriptionText, SRichTextBlock)
             .DecoratorStyleSet(&FAppStyle::Get())
             .Text(FText::FromString(PullRequestData->Info.body))
             .TextStyle(&FCoreStyle::Get().GetWidgetStyle<FTextBlockStyle>( "Text.Large" ))
@@ -1010,7 +1072,7 @@ void SPullRequestsEditor::OnMarkerListDoubleClicked(TSharedPtr<FPullRequestItem>
 
 void SPullRequestsEditor::RefreshPullRequest()
 {
-    auto EnumObject = FindObject<UEnum>(nullptr, TEXT("EPullRequestQueryState"), true);
+    auto EnumObject = FindObject<UEnum>(nullptr, TEXT("/Script/GithubPullRequest.EPullRequestQueryState"), true);
     auto State = (EPullRequestQueryState)EnumObject->GetValueByName(QueryState);
 
     FOnPullRequestListAvailable Delegate;

@@ -138,6 +138,68 @@ bool UGithubApi::GetPullRequests(FOnPullRequestListAvailable OnPullRequestListAv
 	return true;
 }
 
+bool UGithubApi::GetPullRequest(FOnPullRequestAvailable OnPullRequestAvailable, int PullNumber)
+{
+	if (!CheckGithubToken())
+	{
+		OnPullRequestAvailable.ExecuteIfBound({}, 401, TEXT("GitHub token is not configured"));
+		return false;
+	}
+	auto Settings = GetDefault<UGithubPullRequestSettings>();
+	FHttpModule* Http = &FHttpModule::Get();
+	FHttpRequestRef Request = Http->CreateRequest();
+	auto BaseUrl = GetBaseUrl();
+	auto Url = FString::Format(TEXT("{0}/pull/{1}"), {BaseUrl, PullNumber});
+	Request->SetURL(Url);
+	Request->SetHeader(TEXT("Authorization"), FString::Printf(TEXT("Bearer %s"), *Settings->GithubToken));
+	Request->SetHeader(TEXT("Content-Type"), TEXT("application/json"));
+	Request->SetHeader(TEXT("User-Agent"), TEXT("X-UnrealEngine-Agent"));
+	Request->SetHeader(TEXT("Accepts"), TEXT("application/vnd.github.raw+json"));
+	Request->SetHeader(TEXT("X-GitHub-Api-Version"), TEXT("2022-11-28"));
+	Request->OnProcessRequestComplete().BindLambda([OnPullRequestAvailable](FHttpRequestPtr Request, FHttpResponsePtr Response, bool bConnectedSuccessfully)
+		{
+			if (!Response.IsValid())
+				return;
+			int Code = Response->GetResponseCode();
+			if (Code != 200)
+			{
+				OnPullRequestAvailable.ExecuteIfBound({}, Code, Response->GetContentAsString());
+				FQueryResultError Error;
+				if (!FJsonObjectConverter::JsonObjectStringToUStruct<FQueryResultError>(Response->GetContentAsString(), &Error))
+				{
+					return;
+				}
+				FNotificationInfo Info(FText::FromString(Error.message));
+				Info.SubText = FText::FromString(Error.documentation_url);
+				Info.bFireAndForget = true;
+				Info.ExpireDuration = 5.0f;
+				Info.bUseThrobber = false;
+				Info.Image = FCoreStyle::Get().GetBrush(TEXT("Icons.Error"));
+				FSlateNotificationManager::Get().AddNotification(Info);
+				return;
+			}
+			auto Content = Response->GetContentAsString();
+			TSharedRef<TJsonReader<>> const JsonReader = TJsonReaderFactory<>::Create(Content);
+			TArray<TSharedPtr<FJsonValue>> JsonObject;
+			const TSharedPtr<FJsonObject>* ResultObject = nullptr;
+
+			if (!FJsonSerializer::Deserialize(JsonReader, JsonObject) || JsonObject.IsEmpty())
+			{
+				OnPullRequestAvailable.ExecuteIfBound({}, 600, TEXT("Parse string to json failed"));
+				return;
+			}
+			FPullRequestInformation Result;
+			if (!FJsonObjectConverter::JsonObjectStringToUStruct<FPullRequestInformation>(Response->GetContentAsString(), &Result))
+			{
+				return;
+			}
+			OnPullRequestAvailable.ExecuteIfBound(Result, Code, Response->GetContentAsString());
+		});
+	Request->ProcessRequest();
+
+	return true;
+}
+
 bool UGithubApi::GetFilesInPullRequest(int PullNumber, FOnFilesListAvailable OnFilesListAvailable, int NumFile, int Page)
 {
 	if (!CheckGithubToken())
