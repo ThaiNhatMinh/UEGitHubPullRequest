@@ -9,6 +9,33 @@
 #include "Interfaces/IHttpResponse.h"
 #include "GenericPlatform/GenericPlatformHttp.h"
 #include "Interfaces/IPluginManager.h"
+#include "Framework/Notifications/NotificationManager.h"
+#include "Widgets/Notifications/SNotificationList.h"
+
+namespace
+{
+	bool bMissingTokenNotificationShown = false;
+
+	bool CheckGithubToken()
+	{
+		const UGithubPullRequestSettings* Settings = GetDefault<UGithubPullRequestSettings>();
+		if (Settings->GithubToken.IsEmpty())
+		{
+			if (!bMissingTokenNotificationShown)
+			{
+				bMissingTokenNotificationShown = true;
+				FNotificationInfo Info(FText::FromString(TEXT("GitHub Token is missing. Please configure it in Project Settings > Plugins > Github Pull Request.")));
+				Info.bFireAndForget = true;
+				Info.ExpireDuration = 5.0f;
+				Info.bUseThrobber = false;
+				Info.Image = FCoreStyle::Get().GetBrush(TEXT("Icons.Warning"));
+				FSlateNotificationManager::Get().AddNotification(Info);
+			}
+			return false;
+		}
+		return true;
+	}
+}
 
 FString UGithubApi::GetBaseUrl()
 {
@@ -46,6 +73,12 @@ FString UGithubApi::GetBaseUrl()
 
 bool UGithubApi::GetPullRequests(FOnPullRequestListAvailable OnPullRequestListAvailable, EPullRequestQueryState state, int Page, int NumberPage)
 {
+	if (!CheckGithubToken())
+	{
+		OnPullRequestListAvailable.ExecuteIfBound({}, 401, TEXT("GitHub token is not configured"));
+		return false;
+	}
+
 	auto State = UEnum::GetDisplayValueAsText(state).ToString();
 	auto Settings = GetDefault<UGithubPullRequestSettings>();
 	FHttpModule* Http = &FHttpModule::Get();
@@ -57,6 +90,7 @@ bool UGithubApi::GetPullRequests(FOnPullRequestListAvailable OnPullRequestListAv
 	Request->SetHeader(TEXT("Content-Type"), TEXT("application/json"));
 	Request->SetHeader(TEXT("User-Agent"), TEXT("X-UnrealEngine-Agent"));
 	Request->SetHeader(TEXT("Accepts"), TEXT("application/vnd.github.raw+json"));
+	Request->SetHeader(TEXT("X-GitHub-Api-Version"), TEXT("2022-11-28"));
 	Request->OnProcessRequestComplete().BindLambda([OnPullRequestListAvailable](FHttpRequestPtr Request, FHttpResponsePtr Response, bool bConnectedSuccessfully)
 	{
 		if (!Response.IsValid())
@@ -65,6 +99,19 @@ bool UGithubApi::GetPullRequests(FOnPullRequestListAvailable OnPullRequestListAv
 		if (Code != 200)
 		{
 			OnPullRequestListAvailable.ExecuteIfBound({}, Code, Response->GetContentAsString());
+
+			FQueryResultError Error;
+			if (!FJsonObjectConverter::JsonObjectStringToUStruct<FQueryResultError>(Response->GetContentAsString(), &Error))
+			{
+				return;
+			}
+			FNotificationInfo Info(FText::FromString(Error.message));
+			Info.SubText = FText::FromString(Error.documentation_url);
+			Info.bFireAndForget = true;
+			Info.ExpireDuration = 5.0f;
+			Info.bUseThrobber = false;
+			Info.Image = FCoreStyle::Get().GetBrush(TEXT("Icons.Error"));
+			FSlateNotificationManager::Get().AddNotification(Info);
 			return;
 		}
 		auto Content = Response->GetContentAsString();
@@ -93,6 +140,12 @@ bool UGithubApi::GetPullRequests(FOnPullRequestListAvailable OnPullRequestListAv
 
 bool UGithubApi::GetFilesInPullRequest(int PullNumber, FOnFilesListAvailable OnFilesListAvailable, int NumFile, int Page)
 {
+	if (!CheckGithubToken())
+	{
+		OnFilesListAvailable.ExecuteIfBound({}, 401, TEXT("GitHub token is not configured"));
+		return false;
+	}
+
 	auto Settings = GetDefault<UGithubPullRequestSettings>();
 	FHttpModule* Http = &FHttpModule::Get();
 	FHttpRequestRef Request = Http->CreateRequest();
@@ -143,6 +196,12 @@ bool UGithubApi::GetFilesInPullRequest(int PullNumber, FOnFilesListAvailable OnF
 
 bool UGithubApi::DownloadFile(FOnFileDownloadComplete OnFileDownloadComplete, const FString& FilePath, const FString& Sha)
 {
+	if (!CheckGithubToken())
+	{
+		OnFileDownloadComplete.ExecuteIfBound(TEXT(""), 401, TEXT("GitHub token is not configured"));
+		return false;
+	}
+
 	IFileManager::Get().MakeDirectory(*FPaths::DiffDir(), true);
 	const FString TempFileName = FString::Printf(TEXT("%s%s-%s"), *FPaths::DiffDir(), *Sha, *FPaths::GetCleanFilename(FilePath));
 	if (FPaths::FileExists(TempFileName))
@@ -277,6 +336,12 @@ bool UGithubApi::DownloadAvatar(FOnFileDownloadComplete OnFileDownloadComplete, 
 
 bool UGithubApi::CreateReview(FOnCreateReviewComplete OnCreateReviewComplete, int PullNumber, const FString& Event, const FString& Body, const FString& CommitId, const TArray<FReviewComment>& Comments)
 {
+	if (!CheckGithubToken())
+	{
+		OnCreateReviewComplete.ExecuteIfBound(401, TEXT("GitHub token is not configured"));
+		return false;
+	}
+
 	auto Settings = GetDefault<UGithubPullRequestSettings>();
 	FHttpModule* Http = &FHttpModule::Get();
 	FHttpRequestRef Request = Http->CreateRequest();
@@ -297,7 +362,7 @@ bool UGithubApi::CreateReview(FOnCreateReviewComplete OnCreateReviewComplete, in
 	TSharedRef<FJsonObject> OutJsonObject = MakeShareable(new FJsonObject);
 	FJsonObjectConverter::UStructToJsonObject(FReviewBody::StaticStruct(), &BodyStruct, OutJsonObject, 0, 0);
 	if (CommitId.IsEmpty())
-		OutJsonObject->RemoveField("commit_id");
+		OutJsonObject->RemoveField(TEXT("commit_id"));
 
 	FString OutputString;
 	TSharedRef< TJsonWriter<> > Writer = TJsonWriterFactory<>::Create(&OutputString);
@@ -320,6 +385,12 @@ bool UGithubApi::CreateReview(FOnCreateReviewComplete OnCreateReviewComplete, in
 
 bool UGithubApi::ListCommit(FOnCommitListAvailable OnListCommitComplete, const FString& sha, const FString& path, const FString& author, const FString& committer, const FString& since, const FString& until, int page, int per_page)
 {
+	if (!CheckGithubToken())
+	{
+		OnListCommitComplete.ExecuteIfBound({}, 401, TEXT("GitHub token is not configured"));
+		return false;
+	}
+
 	if (sha.IsEmpty())
 		return false;
 	auto Settings = GetDefault<UGithubPullRequestSettings>();
@@ -379,6 +450,12 @@ bool UGithubApi::ListCommit(FOnCommitListAvailable OnListCommitComplete, const F
 
 bool UGithubApi::ListCommitFromPull(FOnCommitListAvailable OnListCommitComplete, int PullNumber, int page, int per_page)
 {
+	if (!CheckGithubToken())
+	{
+		OnListCommitComplete.ExecuteIfBound({}, 401, TEXT("GitHub token is not configured"));
+		return false;
+	}
+
 	auto Settings = GetDefault<UGithubPullRequestSettings>();
 	FHttpModule* Http = &FHttpModule::Get();
 	FHttpRequestRef Request = Http->CreateRequest();

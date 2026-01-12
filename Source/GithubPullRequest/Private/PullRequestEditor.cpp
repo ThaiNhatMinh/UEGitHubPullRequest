@@ -116,7 +116,7 @@ void SPullRequestEditor::Construct(const FArguments& InArgs, const TSharedRef<SD
         , NAME_None
         , LOCTEXT("SPullRequestsEditor", "Checkout")
         , LOCTEXT("SPullRequestsEditor", "Checkout to Pullrequest branch")
-        , FSlateIcon(FEditorStyle::GetStyleSetName(), "SourceControl.Actions.CheckOut")
+        , FSlateIcon(FAppStyle::Get().GetStyleSetName(), "SourceControl.Actions.CheckOut")
     );
     ToolBarBuilder.AddToolBarButton(
         FUIAction(
@@ -125,7 +125,7 @@ void SPullRequestEditor::Construct(const FArguments& InArgs, const TSharedRef<SD
         , NAME_None
         , LOCTEXT("SPullRequestsEditor", "Refresh")
         , LOCTEXT("SPullRequestsEditor", "Refresh pull request")
-        , FSlateIcon(FEditorStyle::GetStyleSetName(), "SourceControl.Actions.Refresh")
+        , FSlateIcon(FAppStyle::Get().GetStyleSetName(), "SourceControl.Actions.Refresh")
     );
     // Set up a tab view so we can split the content into different views
     TabManager = FGlobalTabmanager::Get()->NewTabManager(ConstructUnderMajorTab);
@@ -311,7 +311,7 @@ TSharedRef<SDockTab> SPullRequestEditor::CreateListfilesTab(const FSpawnTabArgs&
     {
         SAssignNew(ListFileWidget, SListView<TSharedPtr<FFileItem>>)
             .ListItemsSource(&ListFileItems)
-            .ItemHeight(15)
+            //.ItemHeight(15)
             .SelectionMode(ESelectionMode::Single)
             .OnGenerateRow(this, &SPullRequestEditor::GenerateFileRowWidget)
             .OnMouseButtonDoubleClick(this, &SPullRequestEditor::OnFileDoubleClicked)
@@ -372,7 +372,7 @@ TSharedRef<SDockTab> SPullRequestEditor::CreateDescriptionTab(const FSpawnTabArg
     auto WidgetTag = SNew(SBox).Padding(10.0f)
         [
             SNew(SRichTextBlock)
-            .DecoratorStyleSet(&FEditorStyle::Get())
+            .DecoratorStyleSet(&FAppStyle::Get())
             .Text(FText::FromString(PullRequestData->Info.body))
             .TextStyle(&FCoreStyle::Get().GetWidgetStyle<FTextBlockStyle>( "Text.Large" ))
         ];
@@ -404,19 +404,19 @@ TSharedRef<ITableRow> SPullRequestEditor::GenerateFileRowWidget(TSharedPtr<FFile
 {
     static const FSlateFontInfo Font = FCoreStyle::GetDefaultFontStyle("Regular", 12);
 
-    const FSlateBrush* IconSamples = FEditorStyle::GetBrush(TEXT("Graph.StateNode.Icon"));
+    const FSlateBrush* IconSamples = FAppStyle::Get().GetBrush(TEXT("Graph.StateNode.Icon"));
 
     if (InItem->Info.status == "added")
     {
-        IconSamples = FEditorStyle::GetBrush(TEXT("SourceControl.Add"));
+        IconSamples = FAppStyle::Get().GetBrush(TEXT("SourceControl.Add"));
     }
     else if (InItem->Info.status == "modified")
     {
-        IconSamples = FEditorStyle::GetBrush(TEXT("SourceControl.Edit"));
+        IconSamples = FAppStyle::Get().GetBrush(TEXT("SourceControl.Edit"));
     }
     else if (InItem->Info.status == "renamed")
     {
-        IconSamples = FEditorStyle::GetBrush(TEXT("SourceControl.Integrate"));
+        IconSamples = FAppStyle::Get().GetBrush(TEXT("SourceControl.Integrate"));
     }
     return SNew(STableRow<TSharedPtr<FPullRequestItem>>, OwnerTable)
         [
@@ -537,7 +537,7 @@ void SPullRequestsEditor::Construct(const FArguments& InArgs, const FTabId& Cons
         , NAME_None
         , LOCTEXT("SPullRequestsEditor", "Refresh")
         , LOCTEXT("PrevDiffTooltip", "Refresh pull request list")
-        , FSlateIcon(FEditorStyle::GetStyleSetName(), "Icons.Refresh")
+        , FSlateIcon(FAppStyle::Get().GetStyleSetName(), "Icons.Refresh")
     );
 
     TAttribute<FText> TooltipAttribute;
@@ -549,7 +549,7 @@ void SPullRequestsEditor::Construct(const FArguments& InArgs, const FTabId& Cons
         , NAME_None
         , LOCTEXT("SPullRequestsEditor", "Clean cache")
         ,  TooltipAttribute
-        , FSlateIcon(FEditorStyle::GetStyleSetName(), "ContentReference.Clear")
+        , FSlateIcon(FAppStyle::Get().GetStyleSetName(), "ContentReference.Clear")
     );
 
     // Set up a tab view so we can split the content into different views
@@ -652,7 +652,7 @@ void SPullRequestsEditor::Construct(const FArguments& InArgs, const FTabId& Cons
                     [
 					    SAssignNew(Widget, SListView<TSharedPtr<FPullRequestItem>>)
 					    .ListItemsSource(&PullRequestItems)
-				        .ItemHeight(20)
+				        //.ItemHeight(20)
 				        .SelectionMode(ESelectionMode::Single)
 				        .OnGenerateRow(this, &SPullRequestsEditor::GenerateCategoryRowWidget)
 				        .OnMouseButtonDoubleClick(this, &SPullRequestsEditor::OnMarkerListDoubleClicked)
@@ -709,7 +709,7 @@ void SPullRequestsEditor::OnMarkerListDoubleClicked(TSharedPtr<FPullRequestItem>
 
 void SPullRequestsEditor::RefreshPullRequest()
 {
-    auto EnumObject = FindObject<UEnum>(ANY_PACKAGE, TEXT("EPullRequestQueryState"), true);
+    auto EnumObject = FindObject<UEnum>(nullptr, TEXT("EPullRequestQueryState"), true);
     auto State = (EPullRequestQueryState)EnumObject->GetValueByName(QueryState);
 
     FOnPullRequestListAvailable Delegate;
@@ -789,7 +789,7 @@ TSharedRef<SWidget> SPullRequestRow::GenerateWidgetForColumn(const FName& Column
 {
     static const FSlateFontInfo Font = FCoreStyle::GetDefaultFontStyle("Regular", 12);
 
-    const FSlateBrush* IconSamples = FEditorStyle::GetBrush(TEXT("Graph.StateNode.Icon"));
+    const FSlateBrush* IconSamples = FAppStyle::Get().GetBrush(TEXT("Graph.StateNode.Icon"));
     if (ColumnName == "Title")
     {
         return SNew(SBox)

@@ -15,6 +15,21 @@ enum class EPullRequestQueryState : uint8
 };
 ENUM_RANGE_BY_FIRST_AND_LAST(EPullRequestQueryState, EPullRequestQueryState::Open, EPullRequestQueryState::All);
 
+USTRUCT()
+struct FQueryResultError
+{
+	GENERATED_BODY();
+
+
+	UPROPERTY()
+	FString message;
+
+	UPROPERTY()
+	FString documentation_url;
+
+	UPROPERTY()
+	int status;
+};
 
 struct FPullRequestQueryParameter
 {
