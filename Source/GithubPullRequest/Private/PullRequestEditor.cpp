@@ -7,6 +7,7 @@
 #include "Widgets/Text/SRichTextBlock.h"
 #include "Brushes/SlateDynamicImageBrush.h"
 #include "Widgets/Input/SComboBox.h"
+#include "EditorStyleSet.h"
 
 #include "ISourceControlOperation.h"
 #include "SourceControlOperations.h"

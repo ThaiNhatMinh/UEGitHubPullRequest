@@ -2,6 +2,8 @@
 #include "Widgets/Docking/SDockTab.h"
 #include "Widgets/Views/SListView.h"
 #include "Widgets/Text/SMultiLineEditableText.h"
+#include "ISourceControlOperation.h"
+#include "ISourceControlProvider.h"
 #include "GithubApi.h"
 
 struct FPullRequestItem
