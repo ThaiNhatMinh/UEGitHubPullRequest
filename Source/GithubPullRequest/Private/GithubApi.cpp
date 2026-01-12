@@ -187,10 +187,18 @@ bool UGithubApi::DownloadFile(FOnFileDownloadComplete OnFileDownloadComplete, co
 			}
 			FHttpModule* Http = &FHttpModule::Get();
 			FHttpRequestRef NewRequest = Http->CreateRequest();
+			FString content;
+			FBase64::Decode(ContentInfo.content, content);
 			NewRequest->SetURL(ContentInfo.download_url);
 			NewRequest->SetHeader(TEXT("Authorization"), FString::Printf(TEXT("Bearer %s"), *Settings->GithubToken));
-			NewRequest->SetHeader(TEXT("User-Agent"), TEXT("X-UnrealEngine-Agent"));
 			NewRequest->SetHeader(TEXT("Accepts"), TEXT("application/vnd.github.raw"));
+			NewRequest->SetHeader(TEXT("X-GitHub-Api-Version"), TEXT("2022-11-28"));
+			NewRequest->SetHeader(TEXT("Accept-Encoding"), TEXT("gzip, deflate"));
+			auto Token = NewRequest->GetURLParameter("token");
+			if (!Token.IsEmpty())
+			{
+				NewRequest->SetHeader(TEXT("token"), *Token);
+			}
 			NewRequest->SetVerb(TEXT("GET"));
 			NewRequest->OnProcessRequestComplete().BindLambda([OnFileDownloadComplete, Sha, FilePath](FHttpRequestPtr InRequest, FHttpResponsePtr InResponse, bool bConnectedSuccessfully)
 				{
