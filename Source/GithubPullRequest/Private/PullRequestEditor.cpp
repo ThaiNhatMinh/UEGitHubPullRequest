@@ -1,5 +1,6 @@
 #include "PullRequestEditor.h"
 #include "Widgets/Input/SButton.h"
+#include "Widgets/Input/SCheckBox.h"
 #include "Widgets/Layout/SScrollBox.h"
 #include "Widgets/Images/SImage.h"
 #include "Widgets/Layout/SSpacer.h"
@@ -8,6 +9,8 @@
 #include "Brushes/SlateDynamicImageBrush.h"
 #include "Widgets/Input/SComboBox.h"
 #include "EditorStyleSet.h"
+#include "Framework/Notifications/NotificationManager.h"
+#include "Widgets/Notifications/SNotificationList.h"
 
 #include "ISourceControlOperation.h"
 #include "SourceControlOperations.h"
@@ -18,6 +21,7 @@
 
 #include "IAssetTools.h"
 #include "AssetToolsModule.h"
+#include "PackageTools.h"
 
 #define LOCTEXT_NAMESPACE "SPullRequestsEditor"
 
@@ -29,73 +33,323 @@ static const FName GithubPR_List_TabId = FName(TEXT("GithubPR_List_TabId"));
 void SReviewChanges::Construct(const FArguments& InArgs)
 {
     PullRequestData = InArgs._PullRequestId;
-    SAssignNew(CommentWidget, SMultiLineEditableText)
-        .Text(FText::FromString(TEXT("")))
-        .WrapTextAt(200.0f);
+
+    // GitHub-style colors
+    FLinearColor CommentColor = FLinearColor(0.5f, 0.5f, 0.5f, 1.0f);      // Gray
+    FLinearColor ApproveColor = FLinearColor(0.24f, 0.54f, 0.25f, 1.0f);   // Green
+    FLinearColor RequestChangesColor = FLinearColor(0.82f, 0.15f, 0.15f, 1.0f); // Red
+
+    // Border color
+    FLinearColor BorderColor = FLinearColor(0.3f, 0.3f, 0.3f, 1.0f);
+    FLinearColor ShadowColor = FLinearColor(0.0f, 0.0f, 0.0f, 0.5f);
+    FLinearColor BackgroundColor = FLinearColor(0.05f, 0.05f, 0.05f, 1.0f);
 
     ChildSlot
+    [
+        // Shadow layer
+        SNew(SBorder)
+        .BorderImage(FCoreStyle::Get().GetBrush("WhiteBrush"))
+        .BorderBackgroundColor(ShadowColor)
+        .Padding(FMargin(4, 4, 6, 6))
         [
-            SNew(SBox)
-            .Padding(10)
+            // Main border
+            SNew(SBorder)
+            .BorderImage(FCoreStyle::Get().GetBrush("WhiteBrush"))
+            .BorderBackgroundColor(BorderColor)
+            .Padding(1)
             [
-            SNew(SVerticalBox)
-            +SVerticalBox::Slot()
-            .AutoHeight()
-            .Padding(20)
-            [
-                SNew(STextBlock)
-                .Text(LOCTEXT("SPullRequestsEditor", "Finish your review"))
-                .Font(FCoreStyle::GetDefaultFontStyle("Normal", 15))
-            ]
-            +SVerticalBox::Slot()
-            .MaxHeight(300)
-            .Padding(0, 0, 0, 10)
-            [
+                // Background
                 SNew(SBorder)
+                .BorderImage(FCoreStyle::Get().GetBrush("WhiteBrush"))
+                .BorderBackgroundColor(BackgroundColor)
+                .Padding(0)
                 [
-                    CommentWidget.ToSharedRef()
+                    SNew(SBox)
+                    .MinDesiredWidth(380)
+                    [
+                        SNew(SVerticalBox)
+                        // Header
+                        + SVerticalBox::Slot()
+                        .AutoHeight()
+                        [
+                            SNew(SBorder)
+                            .BorderImage(FAppStyle::Get().GetBrush("ToolPanel.DarkGroupBorder"))
+                            .Padding(FMargin(16, 12))
+                            [
+                                SNew(STextBlock)
+                                .Text(LOCTEXT("FinishReview", "Finish your review"))
+                                .Font(FCoreStyle::GetDefaultFontStyle("Bold", 12))
+                            ]
+                        ]
+                // Comment text area
+                + SVerticalBox::Slot()
+                .AutoHeight()
+                .Padding(16, 12)
+                [
+                    SNew(SVerticalBox)
+                    + SVerticalBox::Slot()
+                    .AutoHeight()
+                    .Padding(0, 0, 0, 8)
+                    [
+                        SNew(SBorder)
+                        .BorderImage(FAppStyle::Get().GetBrush("ToolPanel.GroupBorder"))
+                        .Padding(8)
+                        [
+                            SNew(SBox)
+                            .MinDesiredHeight(80)
+                            [
+                                SAssignNew(CommentWidget, SMultiLineEditableText)
+                                .HintText(LOCTEXT("LeaveComment", "Leave a comment"))
+                                .AutoWrapText(true)
+                            ]
+                        ]
+                    ]
+                ]
+                // Review options
+                + SVerticalBox::Slot()
+                .AutoHeight()
+                .Padding(16, 0, 16, 12)
+                [
+                    SNew(SVerticalBox)
+                    // Comment option
+                    + SVerticalBox::Slot()
+                    .AutoHeight()
+                    .Padding(0, 0, 0, 8)
+                    [
+                        SNew(SHorizontalBox)
+                        + SHorizontalBox::Slot()
+                        .AutoWidth()
+                        .VAlign(VAlign_Top)
+                        .Padding(0, 2, 8, 0)
+                        [
+                            SNew(SCheckBox)
+                            .Style(&FCoreStyle::Get().GetWidgetStyle<FCheckBoxStyle>("RadioButton"))
+                            .IsChecked(this, &SReviewChanges::IsReviewTypeSelected, FString(TEXT("COMMENT")))
+                            .OnCheckStateChanged_Lambda([this](ECheckBoxState State)
+                            {
+                                if (State == ECheckBoxState::Checked)
+                                    OnReviewTypeChanged(TEXT("COMMENT"));
+                            })
+                        ]
+                        + SHorizontalBox::Slot()
+                        .FillWidth(1.0f)
+                        [
+                            SNew(SVerticalBox)
+                            + SVerticalBox::Slot()
+                            .AutoHeight()
+                            [
+                                SNew(STextBlock)
+                                .Text(LOCTEXT("CommentOption", "Comment"))
+                                .Font(FCoreStyle::GetDefaultFontStyle("Bold", 10))
+                            ]
+                            + SVerticalBox::Slot()
+                            .AutoHeight()
+                            [
+                                SNew(STextBlock)
+                                .Text(LOCTEXT("CommentDesc", "Submit general feedback without explicit approval."))
+                                .Font(FCoreStyle::GetDefaultFontStyle("Regular", 9))
+                                .ColorAndOpacity(FSlateColor::UseSubduedForeground())
+                                .AutoWrapText(true)
+                            ]
+                        ]
+                    ]
+                    // Approve option
+                    + SVerticalBox::Slot()
+                    .AutoHeight()
+                    .Padding(0, 0, 0, 8)
+                    [
+                        SNew(SHorizontalBox)
+                        + SHorizontalBox::Slot()
+                        .AutoWidth()
+                        .VAlign(VAlign_Top)
+                        .Padding(0, 2, 8, 0)
+                        [
+                            SNew(SCheckBox)
+                            .Style(&FCoreStyle::Get().GetWidgetStyle<FCheckBoxStyle>("RadioButton"))
+                            .IsChecked(this, &SReviewChanges::IsReviewTypeSelected, FString(TEXT("APPROVE")))
+                            .OnCheckStateChanged_Lambda([this](ECheckBoxState State)
+                            {
+                                if (State == ECheckBoxState::Checked)
+                                    OnReviewTypeChanged(TEXT("APPROVE"));
+                            })
+                        ]
+                        + SHorizontalBox::Slot()
+                        .AutoWidth()
+                        .VAlign(VAlign_Top)
+                        .Padding(0, 0, 8, 0)
+                        [
+                            SNew(SBox)
+                            .WidthOverride(16)
+                            .HeightOverride(16)
+                            [
+                                SNew(SBorder)
+                                .BorderImage(FCoreStyle::Get().GetBrush("WhiteBrush"))
+                                .BorderBackgroundColor(ApproveColor)
+                                .HAlign(HAlign_Center)
+                                .VAlign(VAlign_Center)
+                                [
+                                    SNew(STextBlock)
+                                    .Text(FText::FromString(TEXT("\u2713")))
+                                    .Font(FCoreStyle::GetDefaultFontStyle("Bold", 10))
+                                    .ColorAndOpacity(FLinearColor::White)
+                                ]
+                            ]
+                        ]
+                        + SHorizontalBox::Slot()
+                        .FillWidth(1.0f)
+                        [
+                            SNew(SVerticalBox)
+                            + SVerticalBox::Slot()
+                            .AutoHeight()
+                            [
+                                SNew(STextBlock)
+                                .Text(LOCTEXT("ApproveOption", "Approve"))
+                                .Font(FCoreStyle::GetDefaultFontStyle("Bold", 10))
+                            ]
+                            + SVerticalBox::Slot()
+                            .AutoHeight()
+                            [
+                                SNew(STextBlock)
+                                .Text(LOCTEXT("ApproveDesc", "Submit feedback and approve merging these changes."))
+                                .Font(FCoreStyle::GetDefaultFontStyle("Regular", 9))
+                                .ColorAndOpacity(FSlateColor::UseSubduedForeground())
+                                .AutoWrapText(true)
+                            ]
+                        ]
+                    ]
+                    // Request changes option
+                    + SVerticalBox::Slot()
+                    .AutoHeight()
+                    [
+                        SNew(SHorizontalBox)
+                        + SHorizontalBox::Slot()
+                        .AutoWidth()
+                        .VAlign(VAlign_Top)
+                        .Padding(0, 2, 8, 0)
+                        [
+                            SNew(SCheckBox)
+                            .Style(&FCoreStyle::Get().GetWidgetStyle<FCheckBoxStyle>("RadioButton"))
+                            .IsChecked(this, &SReviewChanges::IsReviewTypeSelected, FString(TEXT("REQUEST_CHANGES")))
+                            .OnCheckStateChanged_Lambda([this](ECheckBoxState State)
+                            {
+                                if (State == ECheckBoxState::Checked)
+                                    OnReviewTypeChanged(TEXT("REQUEST_CHANGES"));
+                            })
+                        ]
+                        + SHorizontalBox::Slot()
+                        .AutoWidth()
+                        .VAlign(VAlign_Top)
+                        .Padding(0, 0, 8, 0)
+                        [
+                            SNew(SBox)
+                            .WidthOverride(16)
+                            .HeightOverride(16)
+                            [
+                                SNew(SBorder)
+                                .BorderImage(FCoreStyle::Get().GetBrush("WhiteBrush"))
+                                .BorderBackgroundColor(RequestChangesColor)
+                                .HAlign(HAlign_Center)
+                                .VAlign(VAlign_Center)
+                                [
+                                    SNew(STextBlock)
+                                    .Text(FText::FromString(TEXT("\u2715")))
+                                    .Font(FCoreStyle::GetDefaultFontStyle("Bold", 9))
+                                    .ColorAndOpacity(FLinearColor::White)
+                                ]
+                            ]
+                        ]
+                        + SHorizontalBox::Slot()
+                        .FillWidth(1.0f)
+                        [
+                            SNew(SVerticalBox)
+                            + SVerticalBox::Slot()
+                            .AutoHeight()
+                            [
+                                SNew(STextBlock)
+                                .Text(LOCTEXT("RequestChangesOption", "Request changes"))
+                                .Font(FCoreStyle::GetDefaultFontStyle("Bold", 10))
+                            ]
+                            + SVerticalBox::Slot()
+                            .AutoHeight()
+                            [
+                                SNew(STextBlock)
+                                .Text(LOCTEXT("RequestChangesDesc", "Submit feedback that must be addressed before merging."))
+                                .Font(FCoreStyle::GetDefaultFontStyle("Regular", 9))
+                                .ColorAndOpacity(FSlateColor::UseSubduedForeground())
+                                .AutoWrapText(true)
+                            ]
+                        ]
+                    ]
+                ]
+                // Submit button
+                + SVerticalBox::Slot()
+                .AutoHeight()
+                .Padding(16, 0, 16, 16)
+                .HAlign(HAlign_Right)
+                [
+                    SNew(SButton)
+                    .ButtonStyle(&FAppStyle::Get().GetWidgetStyle<FButtonStyle>("PrimaryButton"))
+                    .OnClicked(this, &SReviewChanges::OnSubmitReview)
+                    [
+                        SNew(STextBlock)
+                        .Text(LOCTEXT("SubmitReview", "Submit review"))
+                        .Font(FCoreStyle::GetDefaultFontStyle("Bold", 10))
+                    ]
                 ]
             ]
-            +SVerticalBox::Slot()
-            .AutoHeight()
-                [
-                    SNew(SHorizontalBox)
-                    + SHorizontalBox::Slot()
-                    .Padding(5)
-                    [
-                        SNew(SButton).Text(FText::FromString(TEXT("Comments")))
-                        .OnClicked(this, &SReviewChanges::OnCommentBtnClick, FString(TEXT("COMMENT")))
-                    ]
-                    + SHorizontalBox::Slot()
-                    .Padding(5)
-                    [
-                        SNew(SButton).Text(FText::FromString(TEXT("Approve")))
-                        .OnClicked(this, &SReviewChanges::OnCommentBtnClick, FString(TEXT("APPROVE")))
-                    ]
-                    + SHorizontalBox::Slot()
-                    .Padding(5)
-                    [
-                        SNew(SButton).Text(FText::FromString(TEXT("Request change")))
-                        .OnClicked(this, &SReviewChanges::OnCommentBtnClick, FString(TEXT("REQUEST_CHANGES")))
-                    ]
-                ]
-            ]
-        ];
+        ]
+    ]
+    ]
+    ];
 }
 
-FReply SReviewChanges::OnCommentBtnClick(FString Event) const
+void SReviewChanges::OnReviewTypeChanged(FString ReviewType)
 {
-    if (CommentWidget->GetText().IsEmptyOrWhitespace() || !PullRequestData.IsValid())
+    SelectedReviewType = ReviewType;
+}
+
+ECheckBoxState SReviewChanges::IsReviewTypeSelected(FString ReviewType) const
+{
+    return SelectedReviewType == ReviewType ? ECheckBoxState::Checked : ECheckBoxState::Unchecked;
+}
+
+FReply SReviewChanges::OnSubmitReview()
+{
+    if (!PullRequestData.IsValid())
         return FReply::Unhandled();
-    auto Lamda = FOnCreateReviewComplete::CreateLambda([this](int Code, const FString& Content)
+
+    FString CommentText = CommentWidget->GetText().ToString();
+
+    // For REQUEST_CHANGES, comment is required
+    if (SelectedReviewType == TEXT("REQUEST_CHANGES") && CommentText.IsEmpty())
     {
-        int a = 0;
+        FNotificationInfo Info(LOCTEXT("CommentRequired", "A comment is required when requesting changes."));
+        Info.ExpireDuration = 3.0f;
+        FSlateNotificationManager::Get().AddNotification(Info);
+        return FReply::Handled();
+    }
+
+    auto OnComplete = FOnCreateReviewComplete::CreateLambda([](int Code, const FString& Content)
+    {
         if (Code == 200)
         {
-            int b = 0;
+            FNotificationInfo Info(LOCTEXT("ReviewSubmitted", "Review submitted successfully!"));
+            Info.ExpireDuration = 3.0f;
+            FSlateNotificationManager::Get().AddNotification(Info);
+        }
+        else
+        {
+            FNotificationInfo Info(LOCTEXT("ReviewFailed", "Failed to submit review."));
+            Info.ExpireDuration = 3.0f;
+            FSlateNotificationManager::Get().AddNotification(Info);
         }
     });
-    UGithubApi::CreateReview(Lamda, PullRequestData->Info.number, Event, CommentWidget->GetText().ToString());
+
+    UGithubApi::CreateReview(OnComplete, PullRequestData->Info.number, SelectedReviewType, CommentText);
+
+    // Clear the comment after submission
+    CommentWidget->SetText(FText::GetEmpty());
+
     return FReply::Handled();
 }
 
@@ -724,11 +978,129 @@ void SPullRequestEditor::OnFilterTextCommitted(const FText& InFilterText, ETextC
 
 void SPullRequestEditor::Checkout()
 {
-    const UPackage* TransientPackage = GetTransientPackage();
+    if (!PullRequestData.IsValid())
+    {
+        FNotificationInfo Info(LOCTEXT("CheckoutFailed", "No pull request data available."));
+        Info.ExpireDuration = 3.0f;
+        FSlateNotificationManager::Get().AddNotification(Info);
+        return;
+    }
+
+    FString BranchName = PullRequestData->Info.head.ref;
+    if (BranchName.IsEmpty())
+    {
+        FNotificationInfo Info(LOCTEXT("CheckoutNoBranch", "No branch name found in pull request."));
+        Info.ExpireDuration = 3.0f;
+        FSlateNotificationManager::Get().AddNotification(Info);
+        return;
+    }
+
+    // Get the project directory
+    FString ProjectDir = FPaths::ProjectDir();
+
+    // Show progress notification
+    FNotificationInfo ProgressInfo(FText::Format(LOCTEXT("CheckoutProgress", "Checking out branch: {0}"), FText::FromString(BranchName)));
+    ProgressInfo.bFireAndForget = false;
+    ProgressInfo.ExpireDuration = 0.0f;
+    TSharedPtr<SNotificationItem> ProgressNotification = FSlateNotificationManager::Get().AddNotification(ProgressInfo);
+    if (ProgressNotification.IsValid())
+    {
+        ProgressNotification->SetCompletionState(SNotificationItem::CS_Pending);
+    }
+
+    // Get all loaded packages
+    TSet<UPackage*> FilteredPackages;
+    UPackageTools::GetFilteredPackageList(FilteredPackages);
+
+    TArray<UPackage*> PackagesToUnload;
+    for (UPackage* Package : FilteredPackages)
+    {
+        // Skip engine/editor packages
+        if (!Package->GetName().StartsWith(TEXT("/Engine/")) &&
+            !Package->GetName().StartsWith(TEXT("/Script/")))
+        {
+            PackagesToUnload.Add(Package);
+        }
+    }
+
+    FText ErrorMessage;
+    UPackageTools::UnloadPackages(PackagesToUnload, ErrorMessage, /*bUnloadDirtyPackages=*/true);
+    CollectGarbage(GARBAGE_COLLECTION_KEEPFLAGS);
+
+    // Run git commands asynchronously
+    AsyncTask(ENamedThreads::AnyBackgroundThreadNormalTask, [this, BranchName, ProjectDir, ProgressNotification]()
+    {
+        FString GitPath = TEXT("git");
+        FString Output;
+        FString Errors;
+        int32 ReturnCode = 0;
+        bool bSuccess = true;
+
+        // First, fetch the branch from origin
+        FString FetchArgs = FString::Printf(TEXT("fetch origin %s"), *BranchName);
+        bSuccess = FPlatformProcess::ExecProcess(*GitPath, *FetchArgs, &ReturnCode, &Output, &Errors, *ProjectDir);
+
+        if (!bSuccess || ReturnCode != 0)
+        {
+            // Try fetching all
+            FetchArgs = TEXT("fetch --all");
+            bSuccess = FPlatformProcess::ExecProcess(*GitPath, *FetchArgs, &ReturnCode, &Output, &Errors, *ProjectDir);
+        }
+
+        // Then checkout the branch
+        if (bSuccess)
+        {
+            FString CheckoutArgs = FString::Printf(TEXT("checkout %s"), *BranchName);
+            bSuccess = FPlatformProcess::ExecProcess(*GitPath, *CheckoutArgs, &ReturnCode, &Output, &Errors, *ProjectDir);
+
+            // If checkout failed, try creating a tracking branch
+            if (!bSuccess || ReturnCode != 0)
+            {
+                CheckoutArgs = FString::Printf(TEXT("checkout -b %s origin/%s"), *BranchName, *BranchName);
+                bSuccess = FPlatformProcess::ExecProcess(*GitPath, *CheckoutArgs, &ReturnCode, &Output, &Errors, *ProjectDir);
+            }
+        }
+
+        // Update notification on game thread
+        bool bFinalSuccess = bSuccess && ReturnCode == 0;
+        FString FinalBranchName = BranchName;
+        FString FinalErrors = Errors;
+
+        AsyncTask(ENamedThreads::GameThread, [ProgressNotification, bFinalSuccess, FinalBranchName, FinalErrors]()
+        {
+            if (ProgressNotification.IsValid())
+            {
+                if (bFinalSuccess)
+                {
+                    ProgressNotification->SetText(FText::Format(LOCTEXT("CheckoutSuccess", "Successfully checked out: {0}"), FText::FromString(FinalBranchName)));
+                    ProgressNotification->SetCompletionState(SNotificationItem::CS_Success);
+                }
+                else
+                {
+                    FString ErrorMsg = FinalErrors.IsEmpty() ? TEXT("Unknown error") : FinalErrors;
+                    ProgressNotification->SetText(FText::Format(LOCTEXT("CheckoutError", "Failed to checkout: {0}"), FText::FromString(ErrorMsg)));
+                    ProgressNotification->SetCompletionState(SNotificationItem::CS_Fail);
+                }
+                ProgressNotification->ExpireAndFadeout();
+            }
+        });
+    });
 }
 
 void SPullRequestEditor::OnCheckoutComplete(const FSourceControlOperationRef& InOperation, ECommandResult::Type InResult)
 {
+    if (InResult == ECommandResult::Succeeded)
+    {
+        FNotificationInfo Info(LOCTEXT("CheckoutCompleteSuccess", "Checkout completed successfully."));
+        Info.ExpireDuration = 3.0f;
+        FSlateNotificationManager::Get().AddNotification(Info);
+    }
+    else
+    {
+        FNotificationInfo Info(LOCTEXT("CheckoutCompleteFailed", "Checkout failed."));
+        Info.ExpireDuration = 3.0f;
+        FSlateNotificationManager::Get().AddNotification(Info);
+    }
 }
 
 TSharedRef<ITableRow> SPullRequestEditor::GenerateFileRowWidget(TSharedPtr<FFileItem> InItem, const TSharedRef<class STableViewBase>& OwnerTable)

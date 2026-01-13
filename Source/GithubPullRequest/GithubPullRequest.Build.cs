@@ -38,6 +38,7 @@ public class GithubPullRequest : ModuleRules
                 "Projects",
                 "SourceControl",
                 "EditorStyle",
+				"UnrealEd"
 				// ... add other public dependencies that you statically link with here ...
 			}
 			);

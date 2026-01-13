@@ -42,12 +42,14 @@ public:
     SLATE_END_ARGS()
 
     void Construct(const FArguments& InArgs);
-    FReply OnCommentBtnClick(FString Event) const;
+    FReply OnSubmitReview();
+    void OnReviewTypeChanged(FString ReviewType);
+    ECheckBoxState IsReviewTypeSelected(FString ReviewType) const;
 
 protected:
-    TSharedPtr<FPullRequestItem>  PullRequestData;
+    TSharedPtr<FPullRequestItem> PullRequestData;
     TSharedPtr<SMultiLineEditableText> CommentWidget;
-
+    FString SelectedReviewType = TEXT("COMMENT");
 };
 
 class SPullRequestEditor : public SCompoundWidget
