@@ -394,6 +394,7 @@ DECLARE_DELEGATE_ThreeParams(FOnPullRequestListAvailable, const TArray<FPullRequ
 DECLARE_DELEGATE_ThreeParams(FOnPullRequestAvailable, const FPullRequestInformation& PullRequest, int Code, const FString& Content);
 DECLARE_DELEGATE_ThreeParams(FOnFilesListAvailable, const TArray<FFileChangeInformation>& Files, int Code, const FString& Content);
 DECLARE_DELEGATE_ThreeParams(FOnCommitListAvailable, const TArray<FCommitFullData>& Commits, int Code, const FString& Content);
+DECLARE_DELEGATE_ThreeParams(FOnCommitDetailsAvailable, const FCommitFullData& Commit, int Code, const FString& Content);
 DECLARE_DELEGATE_ThreeParams(FOnFileDownloadComplete, const FString& GamePath, int Code, const FString& Content);
 DECLARE_DELEGATE_TwoParams(FOnCreateReviewComplete, int Code, const FString& Content);
 
@@ -424,7 +425,7 @@ public:
 	* Query parameters
 	* 
 	* sha string
-	* SHA or branch to start listing commits from. Default: the repository’s default branch (usually main).
+	* SHA or branch to start listing commits from. Default: the repositoryï¿½s default branch (usually main).
 	* 
 	* path string
 	* Only commits containing this file path will be returned.
@@ -452,4 +453,10 @@ public:
 	*/
 	static bool ListCommit(FOnCommitListAvailable OnListCommitComplete, const FString& sha, const FString& path = "", const FString& author = "", const FString& committer = "", const FString& since = "", const FString& until = "", int page = 1, int per_page = 100);
 	static bool ListCommitFromPull(FOnCommitListAvailable OnListCommitComplete, int PullNumber, int page = 1, int per_page = 100);
+
+	/**
+	 * Get details of a single commit including files changed
+	 * https://docs.github.com/en/rest/commits/commits?apiVersion=2022-11-28#get-a-commit
+	 */
+	static bool GetCommitDetails(FOnCommitDetailsAvailable OnCommitDetailsAvailable, const FString& CommitSha);
 };

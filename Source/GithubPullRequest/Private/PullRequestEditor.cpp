@@ -570,9 +570,11 @@ void SPullRequestEditor::Construct(const FArguments& InArgs, const TSharedRef<SD
 
 SPullRequestEditor::~SPullRequestEditor()
 {
+    TArray<UPackage*> PackagesToUnload;
+
     for (auto& File : OpenedFiles)
     {
-        auto Package = File.Get();
+        UPackage* Package = File.Get();
         if (!IsValid(Package))
             continue;
         // Detach the linkers of any loaded packages so that SCC can overwrite the files...
@@ -582,7 +584,17 @@ SPullRequestEditor::~SPullRequestEditor()
             Package->FullyLoad();
         }
         ResetLoaders(Package);
+        PackagesToUnload.Add(Package);
     }
+
+    // Actually unload the packages to free memory
+    if (PackagesToUnload.Num() > 0)
+    {
+        FText ErrorMessage;
+        UPackageTools::UnloadPackages(PackagesToUnload, ErrorMessage, /*bUnloadDirtyPackages=*/true);
+    }
+
+    OpenedFiles.Empty();
 }
 
 TSharedRef<SWidget> SPullRequestEditor::MakeReviewChanges()
@@ -873,15 +885,140 @@ TSharedRef<SDockTab> SPullRequestEditor::CreateCommitsTab(const FSpawnTabArgs& A
                 ListItem->PRInfo = PullRequestData;
                 ListCommitItems.Add(ListItem);
 
-                if (CommitWidgetPtr.IsValid())
-                {
-                    CommitWidgetPtr->AddSlot()
-                        .AutoHeight()
-                        .Padding(2)
+                // Create expandable section for each commit
+                TSharedPtr<SVerticalBox> FilesContainer = SNew(SVerticalBox);
+                TSharedPtr<bool> bIsExpanded = MakeShared<bool>(false);
+                TSharedPtr<bool> bFilesLoaded = MakeShared<bool>(false);
+                FString CommitSha = Item.sha;
+
+                ListCommitWidget->AddSlot()
+                    .AutoHeight()
+                    .Padding(5)
+                    [
+                        SNew(SBorder)
+                        .BorderImage(FAppStyle::Get().GetBrush("Brushes.Panel"))
+                        .Padding(5)
                         [
-                            CreateCommitRowWidget(Item)
-                        ];
-                }
+                            SNew(SVerticalBox)
+                            +SVerticalBox::Slot()
+                            .AutoHeight()
+                            [
+                                SNew(SHorizontalBox)
+                                +SHorizontalBox::Slot()
+                                .AutoWidth()
+                                .Padding(0, 0, 5, 0)
+                                [
+                                    SNew(SButton)
+                                    .ButtonStyle(FAppStyle::Get(), "SimpleButton")
+                                    .OnClicked_Lambda([bIsExpanded, bFilesLoaded, FilesContainer, CommitSha]() -> FReply
+                                    {
+                                        *bIsExpanded = !(*bIsExpanded);
+                                        FilesContainer->SetVisibility(*bIsExpanded ? EVisibility::Visible : EVisibility::Collapsed);
+
+                                        // Load files on first expand
+                                        if (*bIsExpanded && !(*bFilesLoaded))
+                                        {
+                                            *bFilesLoaded = true;
+                                            UGithubApi::GetCommitDetails(
+                                                FOnCommitDetailsAvailable::CreateLambda([FilesContainer](const FCommitFullData& CommitData, int Code, const FString& Content)
+                                                {
+                                                    if (Code != 200 || CommitData.files.IsEmpty())
+                                                    {
+                                                        FilesContainer->AddSlot()
+                                                            .AutoHeight()
+                                                            .Padding(20, 2)
+                                                            [
+                                                                SNew(STextBlock)
+                                                                .Text(FText::FromString(TEXT("No files or failed to load")))
+                                                                .ColorAndOpacity(FSlateColor(FLinearColor::Gray))
+                                                            ];
+                                                        return;
+                                                    }
+
+                                                    for (const FCommitFile& File : CommitData.files)
+                                                    {
+                                                        const FSlateBrush* StatusIcon = FAppStyle::Get().GetBrush(TEXT("Graph.StateNode.Icon"));
+                                                        if (File.status == "added")
+                                                            StatusIcon = FAppStyle::Get().GetBrush(TEXT("SourceControl.Add"));
+                                                        else if (File.status == "modified")
+                                                            StatusIcon = FAppStyle::Get().GetBrush(TEXT("SourceControl.Edit"));
+                                                        else if (File.status == "removed")
+                                                            StatusIcon = FAppStyle::Get().GetBrush(TEXT("SourceControl.Delete"));
+                                                        else if (File.status == "renamed")
+                                                            StatusIcon = FAppStyle::Get().GetBrush(TEXT("SourceControl.Integrate"));
+
+                                                        FilesContainer->AddSlot()
+                                                            .AutoHeight()
+                                                            .Padding(20, 2)
+                                                            [
+                                                                SNew(SHorizontalBox)
+                                                                +SHorizontalBox::Slot()
+                                                                .AutoWidth()
+                                                                .Padding(0, 0, 5, 0)
+                                                                [
+                                                                    SNew(SImage)
+                                                                    .Image(StatusIcon)
+                                                                ]
+                                                                +SHorizontalBox::Slot()
+                                                                .FillWidth(1.0f)
+                                                                [
+                                                                    SNew(STextBlock)
+                                                                    .Text(FText::FromString(File.filename))
+                                                                    .Font(FCoreStyle::GetDefaultFontStyle("Regular", 9))
+                                                                ]
+                                                                +SHorizontalBox::Slot()
+                                                                .AutoWidth()
+                                                                .Padding(5, 0)
+                                                                [
+                                                                    SNew(STextBlock)
+                                                                    .Text(FText::FromString(FString::Printf(TEXT("+%d -%d"), File.additions, File.deletions)))
+                                                                    .Font(FCoreStyle::GetDefaultFontStyle("Regular", 9))
+                                                                    .ColorAndOpacity(FSlateColor(FLinearColor::Gray))
+                                                                ]
+                                                            ];
+                                                    }
+                                                }),
+                                                CommitSha
+                                            );
+                                        }
+                                        return FReply::Handled();
+                                    })
+                                    .Content()
+                                    [
+                                        SNew(SImage)
+                                        .Image_Lambda([bIsExpanded]()
+                                        {
+                                            return FAppStyle::Get().GetBrush(*bIsExpanded ? TEXT("TreeArrow_Expanded") : TEXT("TreeArrow_Collapsed"));
+                                        })
+                                    ]
+                                ]
+                                +SHorizontalBox::Slot()
+                                .FillWidth(1.0f)
+                                [
+                                    SNew(STextBlock)
+                                    .Text(FText::FromString(Item.commit.message))
+                                    .Font(FCoreStyle::GetDefaultFontStyle("Regular", 10))
+                                    .AutoWrapText(true)
+                                ]
+                                +SHorizontalBox::Slot()
+                                .AutoWidth()
+                                .Padding(10, 0)
+                                [
+                                    SNew(STextBlock)
+                                    .Text(FText::FromString(Item.sha.Left(7)))
+                                    .Font(FCoreStyle::GetDefaultFontStyle("Mono", 9))
+                                    .ColorAndOpacity(FSlateColor(FLinearColor::Gray))
+                                ]
+                            ]
+                            +SVerticalBox::Slot()
+                            .AutoHeight()
+                            [
+                                FilesContainer.ToSharedRef()
+                            ]
+                        ]
+                    ];
+
+                FilesContainer->SetVisibility(EVisibility::Collapsed);
             }
             UGithubApi::ListCommitFromPull(OnCommitList, PullRequestData->Info.number, Page + 1);
 
@@ -956,10 +1093,15 @@ TSharedRef<SDockTab> SPullRequestEditor::CreateDescriptionTab(const FSpawnTabArg
 {
     auto WidgetTag = SNew(SBox).Padding(10.0f)
         [
-            SAssignNew(DescriptionText, SRichTextBlock)
-            .DecoratorStyleSet(&FAppStyle::Get())
-            .Text(FText::FromString(PullRequestData->Info.body))
-            .TextStyle(&FCoreStyle::Get().GetWidgetStyle<FTextBlockStyle>( "Text.Large" ))
+            SNew(SBorder)
+            .BorderImage(FAppStyle::Get().GetBrush("Brushes.Panel"))
+            .Padding(10.0f)
+            [
+                SNew(SRichTextBlock)
+                .DecoratorStyleSet(&FAppStyle::Get())
+                .Text(FText::FromString(PullRequestData->Info.body))
+                .TextStyle(&FCoreStyle::Get().GetWidgetStyle<FTextBlockStyle>("Text.Large"))
+            ]
         ];
     return SNew(SDockTab)
         .OnCanCloseTab_Lambda([](){return false;})

@@ -561,3 +561,57 @@ bool UGithubApi::ListCommitFromPull(FOnCommitListAvailable OnListCommitComplete,
 	Request->ProcessRequest();
 	return true;
 }
+
+bool UGithubApi::GetCommitDetails(FOnCommitDetailsAvailable OnCommitDetailsAvailable, const FString& CommitSha)
+{
+	if (!CheckGithubToken())
+	{
+		OnCommitDetailsAvailable.ExecuteIfBound({}, 401, TEXT("GitHub token is not configured"));
+		return false;
+	}
+
+	if (CommitSha.IsEmpty())
+	{
+		OnCommitDetailsAvailable.ExecuteIfBound({}, 400, TEXT("Commit SHA is empty"));
+		return false;
+	}
+
+	auto Settings = GetDefault<UGithubPullRequestSettings>();
+	FHttpModule* Http = &FHttpModule::Get();
+	FHttpRequestRef Request = Http->CreateRequest();
+	auto BaseUrl = GetBaseUrl();
+	auto Url = FString::Format(TEXT("{0}/commits/{1}"), {BaseUrl, CommitSha});
+
+	Request->SetURL(Url);
+	Request->SetHeader(TEXT("Authorization"), FString::Printf(TEXT("Bearer %s"), *Settings->GithubToken));
+	Request->SetHeader(TEXT("Content-Type"), TEXT("application/json"));
+	Request->SetHeader(TEXT("User-Agent"), TEXT("X-UnrealEngine-Agent"));
+	Request->SetHeader(TEXT("Accepts"), TEXT("application/vnd.github.raw+json"));
+	Request->SetHeader(TEXT("X-GitHub-Api-Version"), TEXT("2022-11-28"));
+	Request->SetVerb("GET");
+	Request->OnProcessRequestComplete().BindLambda([OnCommitDetailsAvailable](FHttpRequestPtr InRequest, FHttpResponsePtr InResponse, bool bConnectedSuccessfully)
+		{
+			if (!InResponse.IsValid())
+			{
+				OnCommitDetailsAvailable.ExecuteIfBound({}, 404, TEXT("Response is not valid"));
+				return;
+			}
+
+			int Code = InResponse->GetResponseCode();
+			if (Code != 200)
+			{
+				OnCommitDetailsAvailable.ExecuteIfBound({}, Code, InResponse->GetContentAsString());
+				return;
+			}
+
+			FCommitFullData CommitData;
+			if (!FJsonObjectConverter::JsonObjectStringToUStruct<FCommitFullData>(InResponse->GetContentAsString(), &CommitData))
+			{
+				OnCommitDetailsAvailable.ExecuteIfBound({}, 600, TEXT("Parse json string failed"));
+				return;
+			}
+			OnCommitDetailsAvailable.ExecuteIfBound(CommitData, 200, TEXT(""));
+		});
+	Request->ProcessRequest();
+	return true;
+}
