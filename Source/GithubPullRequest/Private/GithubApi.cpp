@@ -600,7 +600,19 @@ bool UGithubApi::GetCommitDetails(FOnCommitDetailsAvailable OnCommitDetailsAvail
 			int Code = InResponse->GetResponseCode();
 			if (Code != 200)
 			{
-				OnCommitDetailsAvailable.ExecuteIfBound({}, Code, InResponse->GetContentAsString());
+				FQueryResultError Error;
+				if (!FJsonObjectConverter::JsonObjectStringToUStruct<FQueryResultError>(InResponse->GetContentAsString(), &Error))
+				{
+					OnCommitDetailsAvailable.ExecuteIfBound({}, Code, InResponse->GetContentAsString());
+					return;
+				}
+				FNotificationInfo Info(FText::FromString(Error.message));
+				Info.SubText = FText::FromString(Error.documentation_url);
+				Info.bFireAndForget = true;
+				Info.ExpireDuration = 5.0f;
+				Info.bUseThrobber = false;
+				Info.Image = FCoreStyle::Get().GetBrush(TEXT("Icons.Error"));
+				FSlateNotificationManager::Get().AddNotification(Info);
 				return;
 			}
 
