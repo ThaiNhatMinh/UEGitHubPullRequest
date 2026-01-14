@@ -148,26 +148,6 @@ struct FPullRequestInformation
 };
 
 USTRUCT()
-struct FFileChangeInformation
-{
-	GENERATED_BODY();
-	UPROPERTY()
-	FString sha;
-	UPROPERTY()
-	FString filename;
-	UPROPERTY()
-	FString status;
-	UPROPERTY()
-	FString blob_url;
-	UPROPERTY()
-	FString raw_url;
-	UPROPERTY()
-	FString content_url;
-	UPROPERTY()
-	FString patch;
-};
-
-USTRUCT()
 struct FReviewComment
 {
 	GENERATED_BODY();
@@ -228,6 +208,9 @@ struct FCommitTree
 
 	UPROPERTY()
 	FString sha;
+
+	UPROPERTY()
+	FString html_url;
 };
 
 USTRUCT()
@@ -333,6 +316,10 @@ USTRUCT()
 struct FCommitFile
 {
 	GENERATED_BODY();
+
+	UPROPERTY()
+	FString sha;
+
 	UPROPERTY()
 	FString filename;
 	UPROPERTY()
@@ -347,6 +334,8 @@ struct FCommitFile
 	FString raw_url;
 	UPROPERTY()
 	FString blob_url;
+	UPROPERTY()
+	FString content_url;
 	UPROPERTY()
 	FString patch;
 };
@@ -392,7 +381,7 @@ struct FCommitFullData
 
 DECLARE_DELEGATE_ThreeParams(FOnPullRequestListAvailable, const TArray<FPullRequestInformation>& ListPullRequest, int Code, const FString& Content);
 DECLARE_DELEGATE_ThreeParams(FOnPullRequestAvailable, const FPullRequestInformation& PullRequest, int Code, const FString& Content);
-DECLARE_DELEGATE_ThreeParams(FOnFilesListAvailable, const TArray<FFileChangeInformation>& Files, int Code, const FString& Content);
+DECLARE_DELEGATE_ThreeParams(FOnFilesListAvailable, const TArray<FCommitFile>& Files, int Code, const FString& Content);
 DECLARE_DELEGATE_ThreeParams(FOnCommitListAvailable, const TArray<FCommitFullData>& Commits, int Code, const FString& Content);
 DECLARE_DELEGATE_ThreeParams(FOnCommitDetailsAvailable, const FCommitFullData& Commit, int Code, const FString& Content);
 DECLARE_DELEGATE_ThreeParams(FOnFileDownloadComplete, const FString& GamePath, int Code, const FString& Content);
@@ -412,6 +401,7 @@ public:
 	static bool GetPullRequest(FOnPullRequestAvailable OnPullRequestListAvailable, int PullNumber);
 	static bool GetFilesInPullRequest(int PullNumber, FOnFilesListAvailable OnFilesListAvailable, int NumFile = 300, int Page = 1);
 	static bool DownloadFile(FOnFileDownloadComplete OnFileDownloadComplete, const FString& FilePath, const FString& Sha = "");
+	//static bool DownloadFile(FOnFileDownloadComplete OnFileDownloadComplete, const FCommitFile& CommitFile);
 	static bool DownloadAvatar(FOnFileDownloadComplete OnFileDownloadComplete, const FString& Url, const FString& FileName);
 
 	/*

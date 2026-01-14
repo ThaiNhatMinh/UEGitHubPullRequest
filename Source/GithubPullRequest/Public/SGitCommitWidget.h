@@ -25,7 +25,7 @@ public:
 protected:
 	TSharedPtr<SBorder> CommitHeader;
 	TSharedPtr<SVerticalBox> CommitDetail;
-	TSharedPtr<SVerticalBox> FilesContainer;
-
+	TSharedPtr<class SGitListFileChangedWidget> FilesContainer;
+	TSharedPtr<STextBlock> EmptyFileText;
 	FCommitFullData CommitData;
 };

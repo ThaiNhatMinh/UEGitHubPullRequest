@@ -2,6 +2,7 @@
 
 
 #include "SGitCommitWidget.h"
+#include "SGitListFileChangedWidget.h"
 
 #include "SlateOptMacros.h"
 
@@ -158,8 +159,12 @@ void SGitCommitWidget::Construct(const FArguments& InArgs)
                 ]
         ];
 
+        auto ParentSha = CommitData.parents.IsEmpty() ? "" : CommitData.parents[0].sha;
 
-        SAssignNew(FilesContainer ,SVerticalBox);
+        SAssignNew(FilesContainer ,SGitListFileChangedWidget)
+            .Head(CommitData.sha)
+            .Parent(ParentSha)
+            .ShowSearchBox(false);
 
         SAssignNew(CommitDetail, SVerticalBox)
         +SVerticalBox::Slot()
@@ -170,59 +175,17 @@ void SGitCommitWidget::Construct(const FArguments& InArgs)
 
         if (CommitData.files.IsEmpty())
         {
-            FilesContainer->AddSlot()
+            CommitDetail->AddSlot()
             .AutoHeight()
             .Padding(20, 2)
             [
-                SNew(STextBlock)
+                SAssignNew(EmptyFileText, STextBlock)
                 .Text(FText::FromString(TEXT("No files or failed to load")))
                 .ColorAndOpacity(FSlateColor(FLinearColor::Gray))
             ];
             UGithubApi::GetCommitDetails(FOnCommitDetailsAvailable::CreateRaw(this, &SGitCommitWidget::OnCommitDetailsAvailable), CommitData.sha);
         }
-        
-        for (const FCommitFile& File : CommitData.files)
-        {
-            const FSlateBrush* StatusIcon = FAppStyle::Get().GetBrush(TEXT("Graph.StateNode.Icon"));
-            if (File.status == "added")
-                StatusIcon = FAppStyle::Get().GetBrush(TEXT("SourceControl.Add"));
-            else if (File.status == "modified")
-                StatusIcon = FAppStyle::Get().GetBrush(TEXT("SourceControl.Edit"));
-            else if (File.status == "removed")
-                StatusIcon = FAppStyle::Get().GetBrush(TEXT("SourceControl.Delete"));
-            else if (File.status == "renamed")
-                StatusIcon = FAppStyle::Get().GetBrush(TEXT("SourceControl.Integrate"));
-
-            FilesContainer->AddSlot()
-                .AutoHeight()
-                .Padding(20, 2)
-                [
-                    SNew(SHorizontalBox)
-                    +SHorizontalBox::Slot()
-                    .AutoWidth()
-                    .Padding(0, 0, 5, 0)
-                    [
-                        SNew(SImage)
-                        .Image(StatusIcon)
-                    ]
-                    +SHorizontalBox::Slot()
-                    .FillWidth(1.0f)
-                    [
-                        SNew(STextBlock)
-                        .Text(FText::FromString(File.filename))
-                        .Font(FCoreStyle::GetDefaultFontStyle("Regular", 9))
-                    ]
-                    +SHorizontalBox::Slot()
-                    .AutoWidth()
-                    .Padding(5, 0)
-                    [
-                        SNew(STextBlock)
-                        .Text(FText::FromString(FString::Printf(TEXT("+%d -%d"), File.additions, File.deletions)))
-                        .Font(FCoreStyle::GetDefaultFontStyle("Regular", 9))
-                        .ColorAndOpacity(FSlateColor(FLinearColor::Gray))
-                    ]
-                ];
-        }
+    FilesContainer->SetListFiles(CommitData.files);
     TSharedPtr<SExpandableArea> ExpandableCommit;
     SAssignNew(ExpandableCommit, SExpandableArea)
         .InitiallyCollapsed(true)
@@ -253,49 +216,7 @@ void SGitCommitWidget::OnCommitDetailsAvailable(const FCommitFullData& Commit, i
     if (Code != 200)
         return;
     CommitData = Commit;
+    EmptyFileText->SetVisibility(CommitData.files.IsEmpty() ? EVisibility::HitTestInvisible : EVisibility::Collapsed);
 
-    FilesContainer->ClearChildren();
-
-    for (const FCommitFile& File : CommitData.files)
-    {
-        const FSlateBrush* StatusIcon = FAppStyle::Get().GetBrush(TEXT("Graph.StateNode.Icon"));
-        if (File.status == "added")
-            StatusIcon = FAppStyle::Get().GetBrush(TEXT("SourceControl.Add"));
-        else if (File.status == "modified")
-            StatusIcon = FAppStyle::Get().GetBrush(TEXT("SourceControl.Edit"));
-        else if (File.status == "removed")
-            StatusIcon = FAppStyle::Get().GetBrush(TEXT("SourceControl.Delete"));
-        else if (File.status == "renamed")
-            StatusIcon = FAppStyle::Get().GetBrush(TEXT("SourceControl.Integrate"));
-
-        FilesContainer->AddSlot()
-            .AutoHeight()
-            .Padding(20, 2)
-            [
-                SNew(SHorizontalBox)
-                    +SHorizontalBox::Slot()
-                    .AutoWidth()
-                    .Padding(0, 0, 5, 0)
-                    [
-                        SNew(SImage)
-                            .Image(StatusIcon)
-                    ]
-                    +SHorizontalBox::Slot()
-                    .FillWidth(1.0f)
-                    [
-                        SNew(STextBlock)
-                            .Text(FText::FromString(File.filename))
-                            .Font(FCoreStyle::GetDefaultFontStyle("Regular", 9))
-                    ]
-                    +SHorizontalBox::Slot()
-                    .AutoWidth()
-                    .Padding(5, 0)
-                    [
-                        SNew(STextBlock)
-                            .Text(FText::FromString(FString::Printf(TEXT("+%d -%d"), File.additions, File.deletions)))
-                            .Font(FCoreStyle::GetDefaultFontStyle("Regular", 9))
-                            .ColorAndOpacity(FSlateColor(FLinearColor::Gray))
-                    ]
-            ];
-    }
+    FilesContainer->SetListFiles(CommitData.files);
 }

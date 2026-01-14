@@ -14,7 +14,7 @@ struct FPullRequestItem
 struct FFileItem
 {
     TSharedPtr<FPullRequestItem> PRInfo;
-    FFileChangeInformation Info;
+    FCommitFile Info;
 };
 
 struct FCommitItem
@@ -67,7 +67,7 @@ public:
     void Refresh();
     void UpdateInfo(const FPullRequestInformation& PullRequest, int Code, const FString& Content);
     void OnCheckoutComplete(const FSourceControlOperationRef& InOperation, ECommandResult::Type InResult);
-    void OnFilesListAvailable(const TArray<FFileChangeInformation>& Files, int Code, const FString& Content, int Page);
+    void OnFilesListAvailable(const TArray<FCommitFile>& Files, int Code, const FString& Content, int Page);
 
     TSharedRef<SDockTab> CreateListfilesTab(const FSpawnTabArgs& Args);
     TSharedRef<SDockTab> CreateDescriptionTab(const FSpawnTabArgs& Args);
@@ -84,12 +84,13 @@ public:
 protected:
     TSharedPtr<FPullRequestItem>  PullRequestData;
     TSharedPtr<FTabManager> TabManager;
-    TSharedPtr<SListView<TSharedPtr<FFileItem>>> ListFileWidget;
+    //TSharedPtr<SListView<TSharedPtr<FFileItem>>> ListFileWidget;
 
     TSharedPtr<SVerticalBox> ListCommitWidget;
     TSharedPtr<SBorder> Status;
     TSharedPtr<STextBlock> StatusText;
     TSharedPtr<class SRichTextBlock> DescriptionText;
+    TSharedPtr<class SGitListFileChangedWidget> ListFileWidget;
 
     TArray<TSharedPtr<FFileItem>> ListFileItems;
     TArray<TSharedPtr<FCommitItem>> ListCommitItems;

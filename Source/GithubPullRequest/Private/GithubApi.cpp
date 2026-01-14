@@ -35,6 +35,35 @@ namespace
 		}
 		return true;
 	}
+
+	void OnError(FHttpResponsePtr Response)
+	{
+		if (Response.IsValid())
+		{
+
+			FQueryResultError Error;
+			if (!FJsonObjectConverter::JsonObjectStringToUStruct<FQueryResultError>(Response->GetContentAsString(), &Error))
+			{
+				return;
+			}
+			FNotificationInfo Info(FText::FromString(Error.message));
+			Info.SubText = FText::FromString(Error.documentation_url);
+			Info.bFireAndForget = true;
+			Info.ExpireDuration = 5.0f;
+			Info.bUseThrobber = false;
+			Info.Image = FCoreStyle::Get().GetBrush(TEXT("Icons.Error"));
+			FSlateNotificationManager::Get().AddNotification(Info);
+		}
+		else
+		{
+			FNotificationInfo Info(FText::FromString("Response is not valid"));
+			Info.bFireAndForget = true;
+			Info.ExpireDuration = 5.0f;
+			Info.bUseThrobber = false;
+			Info.Image = FCoreStyle::Get().GetBrush(TEXT("Icons.Error"));
+			FSlateNotificationManager::Get().AddNotification(Info);
+		}
+	}
 }
 
 FString UGithubApi::GetBaseUrl()
@@ -98,20 +127,7 @@ bool UGithubApi::GetPullRequests(FOnPullRequestListAvailable OnPullRequestListAv
 		int Code = Response->GetResponseCode();
 		if (Code != 200)
 		{
-			OnPullRequestListAvailable.ExecuteIfBound({}, Code, Response->GetContentAsString());
-
-			FQueryResultError Error;
-			if (!FJsonObjectConverter::JsonObjectStringToUStruct<FQueryResultError>(Response->GetContentAsString(), &Error))
-			{
-				return;
-			}
-			FNotificationInfo Info(FText::FromString(Error.message));
-			Info.SubText = FText::FromString(Error.documentation_url);
-			Info.bFireAndForget = true;
-			Info.ExpireDuration = 5.0f;
-			Info.bUseThrobber = false;
-			Info.Image = FCoreStyle::Get().GetBrush(TEXT("Icons.Error"));
-			FSlateNotificationManager::Get().AddNotification(Info);
+			OnError(Response);
 			return;
 		}
 		auto Content = Response->GetContentAsString();
@@ -163,19 +179,7 @@ bool UGithubApi::GetPullRequest(FOnPullRequestAvailable OnPullRequestAvailable, 
 			int Code = Response->GetResponseCode();
 			if (Code != 200)
 			{
-				OnPullRequestAvailable.ExecuteIfBound({}, Code, Response->GetContentAsString());
-				FQueryResultError Error;
-				if (!FJsonObjectConverter::JsonObjectStringToUStruct<FQueryResultError>(Response->GetContentAsString(), &Error))
-				{
-					return;
-				}
-				FNotificationInfo Info(FText::FromString(Error.message));
-				Info.SubText = FText::FromString(Error.documentation_url);
-				Info.bFireAndForget = true;
-				Info.ExpireDuration = 5.0f;
-				Info.bUseThrobber = false;
-				Info.Image = FCoreStyle::Get().GetBrush(TEXT("Icons.Error"));
-				FSlateNotificationManager::Get().AddNotification(Info);
+				OnError(Response);
 				return;
 			}
 			auto Content = Response->GetContentAsString();
@@ -229,7 +233,7 @@ bool UGithubApi::GetFilesInPullRequest(int PullNumber, FOnFilesListAvailable OnF
 		int Code = InResponse->GetResponseCode();
 		if (Code != 200)
 		{
-			OnFilesListAvailable.ExecuteIfBound({}, Code, InResponse->GetContentAsString());
+			OnError(InResponse);
 			return;
 		}
 		auto Content = InResponse->GetContentAsString();
@@ -242,11 +246,11 @@ bool UGithubApi::GetFilesInPullRequest(int PullNumber, FOnFilesListAvailable OnF
 			OnFilesListAvailable.ExecuteIfBound({}, Code, "Parse json string failed");
 			return;
 		}
-		TArray<FFileChangeInformation> Files;
+		TArray<FCommitFile> Files;
 		for (auto& Element : JsonObject)
 		{
-			FFileChangeInformation Info;
-			if (FJsonObjectConverter::JsonObjectToUStruct<FFileChangeInformation>(Element->AsObject().ToSharedRef(), &Info))
+			FCommitFile Info;
+			if (FJsonObjectConverter::JsonObjectToUStruct<FCommitFile>(Element->AsObject().ToSharedRef(), &Info))
 				Files.Add(Info);
 		}
 		OnFilesListAvailable.ExecuteIfBound(Files, Code, TEXT(""));
@@ -284,7 +288,7 @@ bool UGithubApi::DownloadFile(FOnFileDownloadComplete OnFileDownloadComplete, co
 	Request->SetURL(Url);
 	Request->SetHeader(TEXT("Authorization"), FString::Printf(TEXT("Bearer %s"), *Settings->GithubToken));
 	Request->SetHeader(TEXT("User-Agent"), TEXT("X-UnrealEngine-Agent"));
-	Request->SetHeader(TEXT("Accepts"), TEXT("application/vnd.github.raw"));
+	Request->SetHeader(TEXT("Accepts"), TEXT("application/vnd.github+json"));
 	Request->SetVerb(TEXT("GET"));
 	Request->OnProcessRequestComplete().BindLambda([OnFileDownloadComplete, Settings, Sha, FilePath](FHttpRequestPtr InRequest, FHttpResponsePtr InResponse, bool bConnectedSuccessfully)
 		{
@@ -297,7 +301,7 @@ bool UGithubApi::DownloadFile(FOnFileDownloadComplete OnFileDownloadComplete, co
 			int Code = InResponse->GetResponseCode();
 			if (Code != 200)
 			{
-				OnFileDownloadComplete.ExecuteIfBound("", Code, InResponse->GetContentAsString());
+				OnError(InResponse);
 				return;
 			}
 			FContentInfo ContentInfo;
@@ -311,10 +315,10 @@ bool UGithubApi::DownloadFile(FOnFileDownloadComplete OnFileDownloadComplete, co
 			FString content;
 			FBase64::Decode(ContentInfo.content, content);
 			NewRequest->SetURL(ContentInfo.download_url);
-			NewRequest->SetHeader(TEXT("Authorization"), FString::Printf(TEXT("Bearer %s"), *Settings->GithubToken));
-			NewRequest->SetHeader(TEXT("Accepts"), TEXT("application/vnd.github.raw"));
+			//NewRequest->SetHeader(TEXT("Authorization"), FString::Printf(TEXT("Bearer %s"), *Settings->GithubToken));
+			//NewRequest->SetHeader(TEXT("Accepts"), TEXT("application/vnd.github.raw+json"));
 			NewRequest->SetHeader(TEXT("X-GitHub-Api-Version"), TEXT("2022-11-28"));
-			NewRequest->SetHeader(TEXT("Accept-Encoding"), TEXT("gzip, deflate"));
+			//NewRequest->SetHeader(TEXT("Accept-Encoding"), TEXT("gzip, deflate"));
 			auto Token = NewRequest->GetURLParameter("token");
 			if (!Token.IsEmpty())
 			{
@@ -332,7 +336,7 @@ bool UGithubApi::DownloadFile(FOnFileDownloadComplete OnFileDownloadComplete, co
 					int Code = InResponse->GetResponseCode();
 					if (Code != 200)
 					{
-						OnFileDownloadComplete.ExecuteIfBound("", Code, InResponse->GetContentAsString());
+						OnError(InResponse);
 						return;
 					}
 
@@ -352,6 +356,103 @@ bool UGithubApi::DownloadFile(FOnFileDownloadComplete OnFileDownloadComplete, co
 	Request->ProcessRequest();
 	return true;
 }
+//
+//bool UGithubApi::DownloadFile(FOnFileDownloadComplete OnFileDownloadComplete, const FCommitFile& CommitFile)
+//{
+//	if (!CheckGithubToken() || CommitFile.raw_url.IsEmpty())
+//	{
+//		return false;
+//	}
+//
+//
+//	IFileManager::Get().MakeDirectory(*FPaths::DiffDir(), true);
+//	const FString TempFileName = FString::Printf(TEXT("%s%s-%s"), *FPaths::DiffDir(), *CommitFile.Sha, *FPaths::GetCleanFilename(FilePath));
+//	if (FPaths::FileExists(TempFileName))
+//	{
+//		OnFileDownloadComplete.ExecuteIfBound(TempFileName, 200, TEXT(""));
+//		return true;
+//	}
+//
+//	auto Settings = GetDefault<UGithubPullRequestSettings>();
+//	FHttpModule* Http = &FHttpModule::Get();
+//	auto BaseUrl = GetBaseUrl();
+//	FString Url;
+//	if (Sha.IsEmpty())
+//		Url = FString::Format(TEXT("{0}/contents/{1}"), {BaseUrl, FilePath});
+//	else
+//		Url = FString::Format(TEXT("{0}/contents/{1}?ref={2}"), {BaseUrl, FilePath, Sha});
+//	FHttpRequestRef Request = Http->CreateRequest();
+//	Request->SetURL(Url);
+//	Request->SetHeader(TEXT("Authorization"), FString::Printf(TEXT("Bearer %s"), *Settings->GithubToken));
+//	Request->SetHeader(TEXT("User-Agent"), TEXT("X-UnrealEngine-Agent"));
+//	Request->SetHeader(TEXT("Accepts"), TEXT("application/vnd.github.raw"));
+//	Request->SetVerb(TEXT("GET"));
+//	Request->OnProcessRequestComplete().BindLambda([OnFileDownloadComplete, Settings, Sha, FilePath](FHttpRequestPtr InRequest, FHttpResponsePtr InResponse, bool bConnectedSuccessfully)
+//		{
+//			if (!InResponse.IsValid())
+//			{
+//				OnFileDownloadComplete.ExecuteIfBound("", 404, TEXT("Response is not valid"));
+//				return;
+//			}
+//
+//			int Code = InResponse->GetResponseCode();
+//			if (Code != 200)
+//			{
+//				OnFileDownloadComplete.ExecuteIfBound("", Code, InResponse->GetContentAsString());
+//				return;
+//			}
+//			FContentInfo ContentInfo;
+//			if (!FJsonObjectConverter::JsonObjectStringToUStruct<FContentInfo>(InResponse->GetContentAsString(), &ContentInfo))
+//			{
+//				OnFileDownloadComplete.ExecuteIfBound("", Code, "Parse json string failed");
+//				return;
+//			}
+//			FHttpModule* Http = &FHttpModule::Get();
+//			FHttpRequestRef NewRequest = Http->CreateRequest();
+//			FString content;
+//			FBase64::Decode(ContentInfo.content, content);
+//			NewRequest->SetURL(ContentInfo.download_url);
+//			NewRequest->SetHeader(TEXT("Authorization"), FString::Printf(TEXT("Bearer %s"), *Settings->GithubToken));
+//			NewRequest->SetHeader(TEXT("Accepts"), TEXT("application/vnd.github.raw"));
+//			NewRequest->SetHeader(TEXT("X-GitHub-Api-Version"), TEXT("2022-11-28"));
+//			NewRequest->SetHeader(TEXT("Accept-Encoding"), TEXT("gzip, deflate"));
+//			auto Token = NewRequest->GetURLParameter("token");
+//			if (!Token.IsEmpty())
+//			{
+//				NewRequest->SetHeader(TEXT("token"), *Token);
+//			}
+//			NewRequest->SetVerb(TEXT("GET"));
+//			NewRequest->OnProcessRequestComplete().BindLambda([OnFileDownloadComplete, Sha, FilePath](FHttpRequestPtr InRequest, FHttpResponsePtr InResponse, bool bConnectedSuccessfully)
+//				{
+//					if (!InResponse.IsValid())
+//					{
+//						OnFileDownloadComplete.ExecuteIfBound("", 404, TEXT("Response is not valid"));
+//						return;
+//					}
+//
+//					int Code = InResponse->GetResponseCode();
+//					if (Code != 200)
+//					{
+//						OnFileDownloadComplete.ExecuteIfBound("", Code, InResponse->GetContentAsString());
+//						return;
+//					}
+//
+//					IFileManager::Get().MakeDirectory(*FPaths::DiffDir(), true);
+//					const FString TempFileName = FString::Printf(TEXT("%s%s-%s"), *FPaths::DiffDir(), *Sha, *FPaths::GetCleanFilename(FilePath));
+//					if (FFileHelper::SaveArrayToFile(InResponse->GetContent(), *TempFileName))
+//					{
+//						OnFileDownloadComplete.ExecuteIfBound(TempFileName, Code, InResponse->GetContentAsString());
+//					}
+//					else
+//					{
+//						OnFileDownloadComplete.ExecuteIfBound("", 1, "Save file failed");
+//					}
+//				});
+//			NewRequest->ProcessRequest();
+//		});
+//	Request->ProcessRequest();
+//	return true;
+//}
 
 bool UGithubApi::DownloadAvatar(FOnFileDownloadComplete OnFileDownloadComplete, const FString& Url, const FString& FileName)
 {
@@ -380,7 +481,7 @@ bool UGithubApi::DownloadAvatar(FOnFileDownloadComplete OnFileDownloadComplete, 
 			int Code = InResponse->GetResponseCode();
 			if (Code != 200)
 			{
-				OnFileDownloadComplete.ExecuteIfBound("", Code, InResponse->GetContentAsString());
+				OnError(InResponse);
 				return;
 			}
 			if (FFileHelper::SaveArrayToFile(InResponse->GetContent(), *TempFileName))
@@ -439,6 +540,12 @@ bool UGithubApi::CreateReview(FOnCreateReviewComplete OnCreateReviewComplete, in
 				OnCreateReviewComplete.ExecuteIfBound(404, TEXT("Response is not valid"));
 				return;
 			}
+			auto Code = InResponse->GetResponseCode();
+			if (Code != 200)
+			{
+				OnError(InResponse);
+				return;
+			}
 			OnCreateReviewComplete.ExecuteIfBound(InResponse->GetResponseCode(), InResponse->GetContentAsString());
 		});
 	Request->ProcessRequest();
@@ -482,9 +589,9 @@ bool UGithubApi::ListCommit(FOnCommitListAvailable OnListCommitComplete, const F
 	Request->SetVerb("GET");
 	Request->OnProcessRequestComplete().BindLambda([OnListCommitComplete](FHttpRequestPtr InRequest, FHttpResponsePtr InResponse, bool bConnectedSuccessfully)
 		{
-			if (!InResponse.IsValid())
+			if (!InResponse.IsValid() || InResponse->GetResponseCode() != 200)
 			{
-				OnListCommitComplete.ExecuteIfBound({}, 404, TEXT("Response is not valid"));
+				OnError(InResponse);
 				return;
 			}
 			auto Content = InResponse->GetContentAsString();
@@ -534,9 +641,9 @@ bool UGithubApi::ListCommitFromPull(FOnCommitListAvailable OnListCommitComplete,
 	Request->SetVerb("GET");
 	Request->OnProcessRequestComplete().BindLambda([OnListCommitComplete](FHttpRequestPtr InRequest, FHttpResponsePtr InResponse, bool bConnectedSuccessfully)
 		{
-			if (!InResponse.IsValid())
+			if (!InResponse.IsValid() || InResponse->GetResponseCode() != 200)
 			{
-				OnListCommitComplete.ExecuteIfBound({}, 404, TEXT("Response is not valid"));
+				OnError(InResponse);
 				return;
 			}
 			auto Content = InResponse->GetContentAsString();
@@ -600,19 +707,7 @@ bool UGithubApi::GetCommitDetails(FOnCommitDetailsAvailable OnCommitDetailsAvail
 			int Code = InResponse->GetResponseCode();
 			if (Code != 200)
 			{
-				FQueryResultError Error;
-				if (!FJsonObjectConverter::JsonObjectStringToUStruct<FQueryResultError>(InResponse->GetContentAsString(), &Error))
-				{
-					OnCommitDetailsAvailable.ExecuteIfBound({}, Code, InResponse->GetContentAsString());
-					return;
-				}
-				FNotificationInfo Info(FText::FromString(Error.message));
-				Info.SubText = FText::FromString(Error.documentation_url);
-				Info.bFireAndForget = true;
-				Info.ExpireDuration = 5.0f;
-				Info.bUseThrobber = false;
-				Info.Image = FCoreStyle::Get().GetBrush(TEXT("Icons.Error"));
-				FSlateNotificationManager::Get().AddNotification(Info);
+				OnError(InResponse);
 				return;
 			}
 

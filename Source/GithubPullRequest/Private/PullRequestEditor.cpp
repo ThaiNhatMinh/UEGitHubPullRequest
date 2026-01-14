@@ -16,7 +16,9 @@
 #include "SourceControlOperations.h"
 #include "ISourceControlProvider.h"
 #include "ISourceControlModule.h"
+
 #include "SGitCommitWidget.h"
+#include "SGitListFileChangedWidget.h"
 
 #include "GithubApi.h"
 
@@ -635,11 +637,6 @@ void SPullRequestEditor::UpdateState()
 void SPullRequestEditor::Refresh()
 {
     // Refresh files list
-    ListFileItems.Empty();
-    if (ListFileWidget.IsValid())
-    {
-        ListFileWidget->RequestListRefresh();
-    }
     UGithubApi::GetFilesInPullRequest(PullRequestData->Info.number, FOnFilesListAvailable::CreateRaw(this, &SPullRequestEditor::OnFilesListAvailable, 1));
 
     // Refresh commits list
@@ -760,62 +757,66 @@ TSharedRef<SDockTab> SPullRequestEditor::CreateCommitsTab(const FSpawnTabArgs& A
 
 TSharedRef<SDockTab> SPullRequestEditor::CreateListfilesTab(const FSpawnTabArgs& Args)
 {
-    if (!ListFileWidget.IsValid())
-    {
-        SAssignNew(ListFileWidget, SListView<TSharedPtr<FFileItem>>)
-            .ListItemsSource(&ListFileItems)
-            //.ItemHeight(15)
-            .SelectionMode(ESelectionMode::Single)
-            .OnGenerateRow(this, &SPullRequestEditor::GenerateFileRowWidget)
-            .OnMouseButtonDoubleClick(this, &SPullRequestEditor::OnFileDoubleClicked)
-            .ScrollbarVisibility(EVisibility::Visible);
-    }
+    //if (!ListFileWidget.IsValid())
+    //{
+    //    SAssignNew(ListFileWidget, SListView<TSharedPtr<FFileItem>>)
+    //        .ListItemsSource(&ListFileItems)
+    //        //.ItemHeight(15)
+    //        .SelectionMode(ESelectionMode::Single)
+    //        .OnGenerateRow(this, &SPullRequestEditor::GenerateFileRowWidget)
+    //        .OnMouseButtonDoubleClick(this, &SPullRequestEditor::OnFileDoubleClicked)
+    //        .ScrollbarVisibility(EVisibility::Visible);
+    //}
 
-    auto NewWidget = SNew(SVerticalBox)
-        +SVerticalBox::Slot()
-        .AutoHeight()
-        .Padding(10.0f)
-        [
-            SNew(SSearchBox)
-            .OnTextCommitted(this, &SPullRequestEditor::OnFilterTextCommitted)
-        ]
-        +SVerticalBox::Slot()
-        .Padding(10.0f)
-        .HAlign(HAlign_Fill)
-        .VAlign(VAlign_Fill)
-        .FillHeight(1)
-        [
-            ListFileWidget.ToSharedRef()
-        ];
+    //auto NewWidget = SNew(SVerticalBox)
+    //    +SVerticalBox::Slot()
+    //    .AutoHeight()
+    //    .Padding(10.0f)
+    //    [
+    //        SNew(SSearchBox)
+    //        .OnTextCommitted(this, &SPullRequestEditor::OnFilterTextCommitted)
+    //    ]
+    //    +SVerticalBox::Slot()
+    //    .Padding(10.0f)
+    //    .HAlign(HAlign_Fill)
+    //    .VAlign(VAlign_Fill)
+    //    .FillHeight(1)
+    //    [
+    //        ListFileWidget.ToSharedRef()
+    //    ];
+
+    SAssignNew(ListFileWidget, SGitListFileChangedWidget)
+        .Parent(PullRequestData->Info.base.sha)
+        .Head(PullRequestData->Info.head.sha);
 
     auto DockTab = SNew(SDockTab)
         .OnCanCloseTab_Lambda([](){return false;})
         .TabRole(ETabRole::PanelTab)
-        .Label_Lambda([this](){return FText::FromString(FString::Printf(TEXT("Files changed (%d)"), ListFileItems.Num()));})
+        .Label_Lambda([this](){return FText::FromString(FString::Printf(TEXT("Files changed (%d)"), ListFileWidget->GetTotalFile()));})
         [
-            NewWidget
+            ListFileWidget.ToSharedRef()
         ];
 
     int Page = 1;
-    ListFileItems.Empty();
-
     UGithubApi::GetFilesInPullRequest(PullRequestData->Info.number, FOnFilesListAvailable::CreateRaw(this, &SPullRequestEditor::OnFilesListAvailable, Page));
     return DockTab;
 }
 
-void SPullRequestEditor::OnFilesListAvailable(const TArray<FFileChangeInformation>& Files, int Code, const FString& Content, int Page)
+void SPullRequestEditor::OnFilesListAvailable(const TArray<FCommitFile>& Files, int Code, const FString& Content, int Page)
 {
     if (Files.IsEmpty())
         return;
-    for (auto& Item : Files)
-    {
-        auto ListItem = MakeShared<FFileItem>();
-        ListItem->Info = Item;
-        ListItem->PRInfo = PullRequestData;
-        ListFileItems.Add(ListItem);
-    }
-    if (ListFileWidget.IsValid())
-        ListFileWidget->RequestListRefresh();
+    //for (auto& Item : Files)
+    //{
+    //    auto ListItem = MakeShared<FFileItem>();
+    //    ListItem->Info = Item;
+    //    ListItem->PRInfo = PullRequestData;
+    //    ListFileItems.Add(ListItem);
+    //}
+
+    ListFileWidget->SetListFiles(Files, true);
+    /*if (ListFileWidget.IsValid())
+        ListFileWidget->RequestListRefresh();*/
     UGithubApi::GetFilesInPullRequest(PullRequestData->Info.number, FOnFilesListAvailable::CreateRaw(this, &SPullRequestEditor::OnFilesListAvailable, Page + 1), 9999, Page + 1);
 }
 
