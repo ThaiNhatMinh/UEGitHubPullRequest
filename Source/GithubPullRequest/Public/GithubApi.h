@@ -28,6 +28,9 @@ struct FQueryResultError
 	FString documentation_url;
 
 	UPROPERTY()
+	TArray<FString> errors;
+
+	UPROPERTY()
 	int status;
 };
 

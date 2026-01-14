@@ -47,7 +47,13 @@ namespace
 				return;
 			}
 			FNotificationInfo Info(FText::FromString(Error.message));
-			Info.SubText = FText::FromString(Error.documentation_url);
+			FString Message;
+			for (auto& error : Error.errors)
+			{
+				Message += "\n" + error;
+			}
+			Message += "\n" + Error.documentation_url;
+			Info.SubText = FText::FromString(Message);
 			Info.bFireAndForget = true;
 			Info.ExpireDuration = 5.0f;
 			Info.bUseThrobber = false;

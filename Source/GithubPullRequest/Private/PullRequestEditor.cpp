@@ -328,6 +328,7 @@ FReply SReviewChanges::OnSubmitReview()
     {
         FNotificationInfo Info(LOCTEXT("CommentRequired", "A comment is required when requesting changes."));
         Info.ExpireDuration = 3.0f;
+        Info.Image = FCoreStyle::Get().GetBrush(TEXT("Icons.Warning"));
         FSlateNotificationManager::Get().AddNotification(Info);
         return FReply::Handled();
     }
@@ -757,34 +758,6 @@ TSharedRef<SDockTab> SPullRequestEditor::CreateCommitsTab(const FSpawnTabArgs& A
 
 TSharedRef<SDockTab> SPullRequestEditor::CreateListfilesTab(const FSpawnTabArgs& Args)
 {
-    //if (!ListFileWidget.IsValid())
-    //{
-    //    SAssignNew(ListFileWidget, SListView<TSharedPtr<FFileItem>>)
-    //        .ListItemsSource(&ListFileItems)
-    //        //.ItemHeight(15)
-    //        .SelectionMode(ESelectionMode::Single)
-    //        .OnGenerateRow(this, &SPullRequestEditor::GenerateFileRowWidget)
-    //        .OnMouseButtonDoubleClick(this, &SPullRequestEditor::OnFileDoubleClicked)
-    //        .ScrollbarVisibility(EVisibility::Visible);
-    //}
-
-    //auto NewWidget = SNew(SVerticalBox)
-    //    +SVerticalBox::Slot()
-    //    .AutoHeight()
-    //    .Padding(10.0f)
-    //    [
-    //        SNew(SSearchBox)
-    //        .OnTextCommitted(this, &SPullRequestEditor::OnFilterTextCommitted)
-    //    ]
-    //    +SVerticalBox::Slot()
-    //    .Padding(10.0f)
-    //    .HAlign(HAlign_Fill)
-    //    .VAlign(VAlign_Fill)
-    //    .FillHeight(1)
-    //    [
-    //        ListFileWidget.ToSharedRef()
-    //    ];
-
     SAssignNew(ListFileWidget, SGitListFileChangedWidget)
         .Parent(PullRequestData->Info.base.sha)
         .Head(PullRequestData->Info.head.sha);
@@ -806,17 +779,7 @@ void SPullRequestEditor::OnFilesListAvailable(const TArray<FCommitFile>& Files, 
 {
     if (Files.IsEmpty())
         return;
-    //for (auto& Item : Files)
-    //{
-    //    auto ListItem = MakeShared<FFileItem>();
-    //    ListItem->Info = Item;
-    //    ListItem->PRInfo = PullRequestData;
-    //    ListFileItems.Add(ListItem);
-    //}
-
     ListFileWidget->SetListFiles(Files, true);
-    /*if (ListFileWidget.IsValid())
-        ListFileWidget->RequestListRefresh();*/
     UGithubApi::GetFilesInPullRequest(PullRequestData->Info.number, FOnFilesListAvailable::CreateRaw(this, &SPullRequestEditor::OnFilesListAvailable, Page + 1), 9999, Page + 1);
 }
 
