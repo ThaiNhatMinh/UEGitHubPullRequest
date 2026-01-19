@@ -29,6 +29,7 @@ public:
 		SLATE_ATTRIBUTE(bool, ShowSearchBox)
 		SLATE_ATTRIBUTE(FString, Parent)
 		SLATE_ATTRIBUTE(FString, Head)
+		SLATE_ATTRIBUTE(bool, ShowViewedMarker)
 		SLATE_ATTRIBUTE(TArray<FCommitFile>, Files)
 	SLATE_END_ARGS()
 
@@ -54,6 +55,7 @@ protected:
 
 	FString Parent;
 	FString Head;
+	bool bShowViewedMarker = false;
 	TArray<FCommitFile> Files;
 	TArray<TWeakObjectPtr<UPackage>> OpenedFiles;
 };

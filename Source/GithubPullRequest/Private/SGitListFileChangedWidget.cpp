@@ -3,6 +3,7 @@
 
 #include "SGitListFileChangedWidget.h"
 #include "Widgets/Input/SSearchBox.h"
+#include "SFileReviewComments.h"
 
 #include "SlateOptMacros.h"
 #include "AssetToolsModule.h"
@@ -14,6 +15,7 @@ void SGitListFileChangedWidget::Construct(const FArguments& InArgs)
     Head = InArgs._Head.Get();
     Files = InArgs._Files.Get();
     bShowSearchBox = InArgs._ShowSearchBox.Get();
+    bShowViewedMarker = InArgs._ShowViewedMarker.Get();
 
     for (auto& File : Files)
     {
@@ -122,6 +124,44 @@ TSharedRef<ITableRow> SGitListFileChangedWidget::GenerateFileRowWidget(TSharedPt
                                 .Text(FText::FromString(FString::Printf(TEXT("+%d -%d"), InItem->additions, InItem->deletions)))
                                 .Font(FCoreStyle::GetDefaultFontStyle("Regular", 9))
                                 .ColorAndOpacity(FSlateColor(FLinearColor::Gray))
+                        ]
+                        +SHorizontalBox::Slot()
+                        .AutoWidth()
+                        .Padding(5, 0)
+                        [
+                            SNew(SBorder)
+                            .BorderImage(FAppStyle::GetBrush("ToolPanel.GroupBorder"))
+                            [
+                                SNew(SHorizontalBox)
+                                + SHorizontalBox::Slot()
+                                [
+                                    SNew(STextBlock)
+                                        .Text(FText::FromString("Viewed"))
+                                        .Font(Font)
+                                ]
+                                + SHorizontalBox::Slot()
+                                [
+                                    SNew(SCheckBox)
+                                ]
+                            ]
+
+                        ]
+                        +SHorizontalBox::Slot()
+                        .AutoWidth()
+                        .Padding(5, 0)
+                        [
+                            // cooking mode menu
+                            SNew(SComboButton)
+                                .ButtonContent()
+                                [
+                                    SNew(STextBlock)
+                                        .Text(FText::FromString("Comment"))
+                                ]
+                                .ContentPadding(FMargin(6.0, 2.0))
+                                .MenuContent()
+                                [
+                                    SNew(SFileReviewComments)
+                                ]
                         ]
                 ]
         ];
