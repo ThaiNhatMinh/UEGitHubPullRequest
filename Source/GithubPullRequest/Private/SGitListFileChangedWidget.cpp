@@ -162,6 +162,7 @@ TSharedRef<ITableRow> SGitListFileChangedWidget::GenerateFileRowWidget(TSharedPt
                                 .MenuContent()
                                 [
                                     SNew(SFileReviewComments)
+                                    .CommitSha(Head)
                                     .CommitFile(InItem)
                                     .PullRequestInfo(PRInfo)
                                 ]

@@ -576,12 +576,11 @@ bool UGithubApi::CreateComment(FOnCreateReviewComplete OnCreateReviewComplete, i
 	BodyStruct.body = Body;
 	BodyStruct.path = FilePath;
 
-	TSharedRef<FJsonObject> OutJsonObject = MakeShareable(new FJsonObject);
-	FJsonObjectConverter::UStructToJsonObject(FReviewBody::StaticStruct(), &BodyStruct, OutJsonObject, 0, 0);
+	auto OutJsonObject = FJsonObjectConverter::UStructToJsonObject(BodyStruct, 0, 0);
 
 	FString OutputString;
 	TSharedRef< TJsonWriter<> > Writer = TJsonWriterFactory<>::Create(&OutputString);
-	FJsonSerializer::Serialize(OutJsonObject, Writer);
+	FJsonSerializer::Serialize(OutJsonObject.ToSharedRef(), Writer);
 
 	Request->SetContentAsString(OutputString);
 

@@ -14,7 +14,9 @@ BEGIN_SLATE_FUNCTION_BUILD_OPTIMIZATION
 void SFileReviewComments::Construct(const FArguments& InArgs)
 {
 	CommitFile = InArgs._CommitFile.Get();
-	PRInfo = InArgs._PullRequestInfo.Get();
+    PRInfo = InArgs._PullRequestInfo.Get();
+    CommitSha = InArgs._CommitSha.Get();
+
     // Border color
     FLinearColor BorderColor = FLinearColor(0.3f, 0.3f, 0.3f, 1.0f);
     FLinearColor ShadowColor = FLinearColor(0.0f, 0.0f, 0.0f, 0.5f);
@@ -137,7 +139,7 @@ FReply SFileReviewComments::OnAddSingleComment()
         return FReply::Handled();
     }
 
-    UGithubApi::CreateComment({}, PRInfo->number, CommentText, CommitFile->sha, CommitFile->filename);
+    UGithubApi::CreateComment({}, PRInfo->number, CommentText, CommitSha, CommitFile->filename);
 	return FReply::Handled();
 }
 

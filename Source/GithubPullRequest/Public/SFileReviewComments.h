@@ -15,6 +15,7 @@ class GITHUBPULLREQUEST_API SFileReviewComments : public SCompoundWidget
 public:
 	SLATE_BEGIN_ARGS(SFileReviewComments)
 	{}
+	SLATE_ATTRIBUTE(FString, CommitSha)
 	SLATE_ATTRIBUTE(TSharedPtr<FCommitFile>, CommitFile)
 	SLATE_ATTRIBUTE(TSharedPtr<FPullRequestInformation>, PullRequestInfo)
 
@@ -29,6 +30,7 @@ protected:
 	FReply OnStartReview();
 
 protected:
+	FString CommitSha;
 	TSharedPtr<SMultiLineEditableText> CommentWidget;
 	TSharedPtr<FPullRequestInformation> PRInfo;
 	TSharedPtr<FCommitFile> CommitFile;
