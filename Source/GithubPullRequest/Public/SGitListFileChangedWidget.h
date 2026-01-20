@@ -31,6 +31,7 @@ public:
 		SLATE_ATTRIBUTE(FString, Head)
 		SLATE_ATTRIBUTE(bool, ShowViewedMarker)
 		SLATE_ATTRIBUTE(TArray<FCommitFile>, Files)
+		SLATE_ATTRIBUTE(TSharedPtr<FPullRequestInformation>, PullRequestInfo)
 	SLATE_END_ARGS()
 
 	/** Constructs this widget with InArgs */
@@ -46,6 +47,9 @@ protected:
 	void OnFilterTextCommitted(const FText& InFilterText, ETextCommit::Type InCommitType);
 	TSharedRef<ITableRow> GenerateFileRowWidget(TSharedPtr<FCommitFile> InItem, const TSharedRef<class STableViewBase>& OwnerTable);
 	void OnFileDoubleClicked(TSharedPtr<FCommitFile> Entry);
+
+protected:
+	TSharedPtr<FPullRequestInformation> PRInfo;
 
 	bool bShowSearchBox = true;
 	TSharedPtr<SListView<TSharedPtr<FCommitFile>>> ListFileWidget;

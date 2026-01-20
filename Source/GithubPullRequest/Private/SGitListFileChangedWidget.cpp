@@ -16,6 +16,7 @@ void SGitListFileChangedWidget::Construct(const FArguments& InArgs)
     Files = InArgs._Files.Get();
     bShowSearchBox = InArgs._ShowSearchBox.Get();
     bShowViewedMarker = InArgs._ShowViewedMarker.Get();
+	PRInfo = InArgs._PullRequestInfo.Get();
 
     for (auto& File : Files)
     {
@@ -161,6 +162,8 @@ TSharedRef<ITableRow> SGitListFileChangedWidget::GenerateFileRowWidget(TSharedPt
                                 .MenuContent()
                                 [
                                     SNew(SFileReviewComments)
+                                    .CommitFile(InItem)
+                                    .PullRequestInfo(PRInfo)
                                 ]
                         ]
                 ]

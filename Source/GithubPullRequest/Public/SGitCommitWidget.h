@@ -15,6 +15,7 @@ public:
 	SLATE_BEGIN_ARGS(SGitCommitWidget)
 	{}
 		SLATE_ATTRIBUTE(FCommitFullData, CommitData)
+		SLATE_ATTRIBUTE(TSharedPtr<FPullRequestInformation>, PullRequestInfo)
 	SLATE_END_ARGS()
 
 	/** Constructs this widget with InArgs */
@@ -23,6 +24,8 @@ public:
 	void OnCommitDetailsAvailable(const FCommitFullData& Commit, int Code, const FString& Content);
 
 protected:
+	TSharedPtr<FPullRequestInformation> PRInfo;
+
 	TSharedPtr<SBorder> CommitHeader;
 	TSharedPtr<SVerticalBox> CommitDetail;
 	TSharedPtr<class SGitListFileChangedWidget> FilesContainer;

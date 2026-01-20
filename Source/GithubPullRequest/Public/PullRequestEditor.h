@@ -6,20 +6,15 @@
 #include "ISourceControlProvider.h"
 #include "GithubApi.h"
 
-struct FPullRequestItem
-{
-    FPullRequestInformation Info;
-};
-
 struct FFileItem
 {
-    TSharedPtr<FPullRequestItem> PRInfo;
+    TSharedPtr<FPullRequestInformation> PRInfo;
     FCommitFile Info;
 };
 
 struct FCommitItem
 {
-    TSharedPtr<FPullRequestItem> PRInfo;
+    TSharedPtr<FPullRequestInformation> PRInfo;
     FCommitFullData CommitInfo;
 };
 
@@ -38,7 +33,7 @@ class SReviewChanges : public SCompoundWidget
 {
 public:
     SLATE_BEGIN_ARGS(SReviewChanges) {}
-        SLATE_ARGUMENT(TSharedPtr<FPullRequestItem>, PullRequestId)
+        SLATE_ARGUMENT(TSharedPtr<FPullRequestInformation>, PullRequestId)
     SLATE_END_ARGS()
 
     void Construct(const FArguments& InArgs);
@@ -47,7 +42,7 @@ public:
     ECheckBoxState IsReviewTypeSelected(FString ReviewType) const;
 
 protected:
-    TSharedPtr<FPullRequestItem> PullRequestData;
+    TSharedPtr<FPullRequestInformation> PullRequestData;
     TSharedPtr<SMultiLineEditableText> CommentWidget;
     FString SelectedReviewType = TEXT("COMMENT");
 };
@@ -57,7 +52,7 @@ class SPullRequestEditor : public SCompoundWidget
 public:
 
     SLATE_BEGIN_ARGS(SPullRequestEditor) {}
-        SLATE_ARGUMENT(TSharedPtr<FPullRequestItem>, PullRequestId)
+        SLATE_ARGUMENT(TSharedPtr<FPullRequestInformation>, PullRequestId)
     SLATE_END_ARGS()
     void Construct(const FArguments& InArgs, const TSharedRef<SDockTab>& ConstructUnderMajorTab);
     ~SPullRequestEditor();
@@ -82,7 +77,7 @@ public:
     void UpdateState();
 
 protected:
-    TSharedPtr<FPullRequestItem>  PullRequestData;
+    TSharedPtr<FPullRequestInformation>  PullRequestData;
     TSharedPtr<FTabManager> TabManager;
     //TSharedPtr<SListView<TSharedPtr<FFileItem>>> ListFileWidget;
 
@@ -112,8 +107,8 @@ public:
 
     void Construct(const FArguments& InArgs, const FTabId& ConstructUnderMajorTab,
         const TSharedPtr<SWindow>& ConstructUnderWindow);
-    TSharedRef<ITableRow> GenerateCategoryRowWidget(TSharedPtr<FPullRequestItem> InItem, const TSharedRef<class STableViewBase>& OwnerTable);
-    void OnMarkerListDoubleClicked(TSharedPtr<FPullRequestItem> Entry);
+    TSharedRef<ITableRow> GenerateCategoryRowWidget(TSharedPtr<FPullRequestInformation> InItem, const TSharedRef<class STableViewBase>& OwnerTable);
+    void OnMarkerListDoubleClicked(TSharedPtr<FPullRequestInformation> Entry);
 
     void RefreshPullRequest();
     void CleanCache();
@@ -130,9 +125,9 @@ private:
 
 private:
     TSharedPtr<SWidget> Toolbar;
-    TSharedPtr<SListView<TSharedPtr<FPullRequestItem>>> Widget;
-    TArray<TSharedPtr<FPullRequestItem>> PullRequestItems;
-    TArray<TSharedPtr<FPullRequestItem>> AllPullRequestItems;
+    TSharedPtr<SListView<TSharedPtr<FPullRequestInformation>>> Widget;
+    TArray<TSharedPtr<FPullRequestInformation>> PullRequestItems;
+    TArray<TSharedPtr<FPullRequestInformation>> AllPullRequestItems;
     TArray<FName> QueryOptions;
     TArray<TSharedPtr<FString>> AuthorOptions;
     TSharedPtr<SComboBox<TSharedPtr<FString>>> AuthorComboBox;
@@ -144,18 +139,18 @@ private:
 };
 
 
-class SPullRequestRow : public SMultiColumnTableRow<TSharedPtr<FPullRequestItem>> {
+class SPullRequestRow : public SMultiColumnTableRow<TSharedPtr<FPullRequestInformation>> {
 public:
     SLATE_BEGIN_ARGS(SPullRequestRow) {}
     SLATE_END_ARGS()
 
 public:
-    void Construct(const FArguments& InArgs, const TSharedRef<STableViewBase>& InOwnerTableView, TSharedPtr<FPullRequestItem> InItem);
+    void Construct(const FArguments& InArgs, const TSharedRef<STableViewBase>& InOwnerTableView, TSharedPtr<FPullRequestInformation> InItem);
 
     virtual TSharedRef<SWidget> GenerateWidgetForColumn(const FName& ColumnName) override;
     const FSlateBrush* GetAvatar() const;
 
 private:
-    TSharedPtr<FPullRequestItem> Item;
+    TSharedPtr<FPullRequestInformation> Item;
     TSharedPtr<struct FSlateDynamicImageBrush> Avatar;
 };

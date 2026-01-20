@@ -189,6 +189,36 @@ struct FReviewBody
 };
 
 USTRUCT()
+struct FCommentBody
+{
+	GENERATED_BODY();
+
+	UPROPERTY()
+	FString body;
+
+	UPROPERTY()
+	FString commit_id;
+
+	UPROPERTY()
+	FString path;
+
+	UPROPERTY()
+	int position = 0;
+
+	UPROPERTY()
+	FString side = "RIGHT"; // LEFT / RIGHT
+
+	UPROPERTY()
+	int line = 1;
+
+	UPROPERTY()
+	FString in_reply_to;
+
+	UPROPERTY()
+	FString start_side = "RIGHT";
+};
+
+USTRUCT()
 struct FCommitUser
 {
 	GENERATED_BODY();
@@ -412,6 +442,12 @@ public:
 	* 
 	*/
 	static bool CreateReview(FOnCreateReviewComplete OnCreateReviewComplete, int PullNumber, const FString& Event, const FString& Body, const FString& CommitId = "", const TArray<FReviewComment>& Comments = {});
+
+
+	/*
+	* https://docs.github.com/en/rest/pulls/comments?apiVersion=2022-11-28#create-a-review-comment-for-a-pull-request
+	*/
+	static bool CreateComment(FOnCreateReviewComplete OnCreateReviewComplete, int PullNumber, const FString& Body, const FString& CommitId, const FString& FilePath);
 
 	/*
 	* https://docs.github.com/en/rest/commits/commits?apiVersion=2022-11-28#list-commits

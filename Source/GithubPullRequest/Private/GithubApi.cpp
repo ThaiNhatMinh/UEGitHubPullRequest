@@ -14,24 +14,17 @@
 
 namespace
 {
-	bool bMissingTokenNotificationShown = false;
-
 	bool CheckGithubToken()
 	{
 		const UGithubPullRequestSettings* Settings = GetDefault<UGithubPullRequestSettings>();
 		if (Settings->GithubToken.IsEmpty())
 		{
-			if (!bMissingTokenNotificationShown)
-			{
-				bMissingTokenNotificationShown = true;
-				FNotificationInfo Info(FText::FromString(TEXT("GitHub Token is missing. Please configure it in Project Settings > Plugins > Github Pull Request.")));
-				Info.bFireAndForget = true;
-				Info.ExpireDuration = 5.0f;
-				Info.bUseThrobber = false;
-				Info.Image = FCoreStyle::Get().GetBrush(TEXT("Icons.Warning"));
-				FSlateNotificationManager::Get().AddNotification(Info);
-			}
-			return false;
+			FNotificationInfo Info(FText::FromString(TEXT("GitHub Token is missing. Please configure it in Project Settings > Plugins > Github Pull Request.")));
+			Info.bFireAndForget = true;
+			Info.ExpireDuration = 5.0f;
+			Info.bUseThrobber = false;
+			Info.Image = FCoreStyle::Get().GetBrush(TEXT("Icons.Warning"));
+			FSlateNotificationManager::Get().AddNotification(Info);
 		}
 		return true;
 	}
@@ -544,6 +537,59 @@ bool UGithubApi::CreateReview(FOnCreateReviewComplete OnCreateReviewComplete, in
 			if (!InResponse.IsValid())
 			{
 				OnCreateReviewComplete.ExecuteIfBound(404, TEXT("Response is not valid"));
+				return;
+			}
+			auto Code = InResponse->GetResponseCode();
+			if (Code != 200)
+			{
+				OnError(InResponse);
+				return;
+			}
+			OnCreateReviewComplete.ExecuteIfBound(InResponse->GetResponseCode(), InResponse->GetContentAsString());
+		});
+	Request->ProcessRequest();
+	return true;
+}
+
+bool UGithubApi::CreateComment(FOnCreateReviewComplete OnCreateReviewComplete, int PullNumber, const FString& Body, const FString& CommitId, const FString& FilePath)
+{
+	if (!CheckGithubToken())
+	{
+		return false;
+	}
+
+
+	auto Settings = GetDefault<UGithubPullRequestSettings>();
+	FHttpModule* Http = &FHttpModule::Get();
+	FHttpRequestRef Request = Http->CreateRequest();
+	auto BaseUrl = GetBaseUrl();
+	auto Url = FString::Format(TEXT("{0}/pulls/{1}/comments"), {BaseUrl, PullNumber});
+	Request->SetURL(Url);
+	Request->SetHeader(TEXT("Authorization"), FString::Printf(TEXT("Bearer %s"), *Settings->GithubToken));
+	Request->SetHeader(TEXT("Content-Type"), TEXT("application/json"));
+	Request->SetHeader(TEXT("User-Agent"), TEXT("X-UnrealEngine-Agent"));
+	Request->SetHeader(TEXT("Accepts"), TEXT("application/vnd.github.raw+json"));
+	Request->SetVerb("POST");
+
+	FCommentBody BodyStruct;
+	BodyStruct.commit_id = CommitId;
+	BodyStruct.body = Body;
+	BodyStruct.path = FilePath;
+
+	TSharedRef<FJsonObject> OutJsonObject = MakeShareable(new FJsonObject);
+	FJsonObjectConverter::UStructToJsonObject(FReviewBody::StaticStruct(), &BodyStruct, OutJsonObject, 0, 0);
+
+	FString OutputString;
+	TSharedRef< TJsonWriter<> > Writer = TJsonWriterFactory<>::Create(&OutputString);
+	FJsonSerializer::Serialize(OutJsonObject, Writer);
+
+	Request->SetContentAsString(OutputString);
+
+	Request->OnProcessRequestComplete().BindLambda([OnCreateReviewComplete](FHttpRequestPtr InRequest, FHttpResponsePtr InResponse, bool bConnectedSuccessfully)
+		{
+			if (!InResponse.IsValid())
+			{
+				OnError(InResponse);
 				return;
 			}
 			auto Code = InResponse->GetResponseCode();

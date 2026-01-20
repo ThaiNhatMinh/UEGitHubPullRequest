@@ -10,6 +10,7 @@ BEGIN_SLATE_FUNCTION_BUILD_OPTIMIZATION
 void SGitCommitWidget::Construct(const FArguments& InArgs)
 {
 	CommitData = InArgs._CommitData.Get();
+	PRInfo = InArgs._PullRequestInfo.Get();
 
     // Get short SHA (first 7 characters)
     FString ShortSha = CommitData.sha.Left(7);
@@ -164,7 +165,8 @@ void SGitCommitWidget::Construct(const FArguments& InArgs)
         SAssignNew(FilesContainer ,SGitListFileChangedWidget)
             .Head(CommitData.sha)
             .Parent(ParentSha)
-            .ShowSearchBox(false);
+            .ShowSearchBox(false)
+		    .PullRequestInfo(PRInfo);
 
         SAssignNew(CommitDetail, SVerticalBox)
         +SVerticalBox::Slot()

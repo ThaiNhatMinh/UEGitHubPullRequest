@@ -349,7 +349,7 @@ FReply SReviewChanges::OnSubmitReview()
         }
     });
 
-    UGithubApi::CreateReview(OnComplete, PullRequestData->Info.number, SelectedReviewType, CommentText);
+    UGithubApi::CreateReview(OnComplete, PullRequestData->number, SelectedReviewType, CommentText);
 
     // Clear the comment after submission
     CommentWidget->SetText(FText::GetEmpty());
@@ -451,7 +451,7 @@ void SPullRequestEditor::Construct(const FArguments& InArgs, const TSharedRef<SD
                 .VAlign(VAlign_Center)
                 [
                     SNew(STextBlock)
-                    .Text(FText::FromString(PullRequestData->Info.title))
+                    .Text(FText::FromString(PullRequestData->title))
                     .Font(FCoreStyle::GetDefaultFontStyle("Bold", 24))
                 ]
                 + SHorizontalBox::Slot()
@@ -460,7 +460,7 @@ void SPullRequestEditor::Construct(const FArguments& InArgs, const TSharedRef<SD
                 .Padding(10, 0, 0, 0)
                 [
                     SNew(STextBlock)
-                    .Text(FText::FromString(FString::Printf(TEXT("#%d"), PullRequestData->Info.number)))
+                    .Text(FText::FromString(FString::Printf(TEXT("#%d"), PullRequestData->number)))
                     .Font(FCoreStyle::GetDefaultFontStyle("Regular", 24))
                     .ColorAndOpacity(FSlateColor::UseSubduedForeground())
                 ]
@@ -494,7 +494,7 @@ void SPullRequestEditor::Construct(const FArguments& InArgs, const TSharedRef<SD
                 .Padding(12, 0, 0, 0)
                 [
                     SNew(STextBlock)
-                    .Text(FText::FromString(FString::Printf(TEXT("%s wants to merge into"), *PullRequestData->Info.user.login)))
+                    .Text(FText::FromString(FString::Printf(TEXT("%s wants to merge into"), *PullRequestData->user.login)))
                     .Font(FCoreStyle::GetDefaultFontStyle("Regular", 10))
                     .ColorAndOpacity(FSlateColor::UseSubduedForeground())
                 ]
@@ -509,7 +509,7 @@ void SPullRequestEditor::Construct(const FArguments& InArgs, const TSharedRef<SD
                     .Padding(FMargin(6, 2))
                     [
                         SNew(STextBlock)
-                        .Text(FText::FromString(PullRequestData->Info.base.ref))
+                        .Text(FText::FromString(PullRequestData->base.ref))
                         .Font(FCoreStyle::GetDefaultFontStyle("Mono", 9))
                         .ColorAndOpacity(FLinearColor(0.3f, 0.5f, 0.8f, 1.0f))
                     ]
@@ -535,7 +535,7 @@ void SPullRequestEditor::Construct(const FArguments& InArgs, const TSharedRef<SD
                     .Padding(FMargin(6, 2))
                     [
                         SNew(STextBlock)
-                        .Text(FText::FromString(PullRequestData->Info.head.ref))
+                        .Text(FText::FromString(PullRequestData->head.ref))
                         .Font(FCoreStyle::GetDefaultFontStyle("Mono", 9))
                         .ColorAndOpacity(FLinearColor(0.3f, 0.5f, 0.8f, 1.0f))
                     ]
@@ -610,7 +610,7 @@ void SPullRequestEditor::UpdateState()
 {
     // Determine state color (GitHub-style)
     FLinearColor StateColor;
-    FString StateText = PullRequestData->Info.state;
+    FString StateText = PullRequestData->state;
     if (StateText.ToLower() == "open")
     {
         StateColor = FLinearColor(0.24f, 0.54f, 0.25f, 1.0f); // Green
@@ -638,7 +638,7 @@ void SPullRequestEditor::UpdateState()
 void SPullRequestEditor::Refresh()
 {
     // Refresh files list
-    UGithubApi::GetFilesInPullRequest(PullRequestData->Info.number, FOnFilesListAvailable::CreateRaw(this, &SPullRequestEditor::OnFilesListAvailable, 1));
+    UGithubApi::GetFilesInPullRequest(PullRequestData->number, FOnFilesListAvailable::CreateRaw(this, &SPullRequestEditor::OnFilesListAvailable, 1));
 
     // Refresh commits list
     ListCommitItems.Empty();
@@ -670,26 +670,27 @@ void SPullRequestEditor::Refresh()
                             ];
                     }
                 }
-                UGithubApi::ListCommitFromPull(OnCommitList, PullRequestData->Info.number, Page + 1);
+                UGithubApi::ListCommitFromPull(OnCommitList, PullRequestData->number, Page + 1);
             });
 
-        UGithubApi::ListCommitFromPull(OnCommitList, PullRequestData->Info.number, Page);
+        UGithubApi::ListCommitFromPull(OnCommitList, PullRequestData->number, Page);
     }
 
-    UGithubApi::GetPullRequest(FOnPullRequestAvailable::CreateRaw(this, &SPullRequestEditor::UpdateInfo), PullRequestData->Info.number);
+    UGithubApi::GetPullRequest(FOnPullRequestAvailable::CreateRaw(this, &SPullRequestEditor::UpdateInfo), PullRequestData->number);
 }
 
 void SPullRequestEditor::UpdateInfo(const FPullRequestInformation& PullRequest, int Code, const FString& Content)
 {
-    PullRequestData->Info = PullRequest;
-    DescriptionText->SetText(FText::FromString(PullRequestData->Info.body));
+    *PullRequestData = PullRequest;
+    DescriptionText->SetText(FText::FromString(PullRequestData->body));
     UpdateState();
 }
 
 TSharedRef<SWidget> SPullRequestEditor::CreateCommitRowWidget(const FCommitFullData& CommitData)
 {
     return SNew(SGitCommitWidget)
-            .CommitData(CommitData);
+            .CommitData(CommitData)
+		    .PullRequestInfo(PullRequestData);
 }
 
 TSharedRef<SDockTab> SPullRequestEditor::CreateCommitsTab(const FSpawnTabArgs& Args)
@@ -748,20 +749,20 @@ TSharedRef<SDockTab> SPullRequestEditor::CreateCommitsTab(const FSpawnTabArgs& A
                         ];
                 }
             }
-            UGithubApi::ListCommitFromPull(OnCommitList, PullRequestData->Info.number, Page + 1);
+            UGithubApi::ListCommitFromPull(OnCommitList, PullRequestData->number, Page + 1);
 
         });
 
-    UGithubApi::ListCommitFromPull(OnCommitList, PullRequestData->Info.number, Page);
+    UGithubApi::ListCommitFromPull(OnCommitList, PullRequestData->number, Page);
     return DockTab;
 }
 
 TSharedRef<SDockTab> SPullRequestEditor::CreateListfilesTab(const FSpawnTabArgs& Args)
 {
     SAssignNew(ListFileWidget, SGitListFileChangedWidget)
-        .Parent(PullRequestData->Info.base.sha)
-        .Head(PullRequestData->Info.head.sha);
-
+        .Parent(PullRequestData->base.sha)
+        .Head(PullRequestData->head.sha)
+	    .PullRequestInfo(PullRequestData);
     auto DockTab = SNew(SDockTab)
         .OnCanCloseTab_Lambda([](){return false;})
         .TabRole(ETabRole::PanelTab)
@@ -771,7 +772,7 @@ TSharedRef<SDockTab> SPullRequestEditor::CreateListfilesTab(const FSpawnTabArgs&
         ];
 
     int Page = 1;
-    UGithubApi::GetFilesInPullRequest(PullRequestData->Info.number, FOnFilesListAvailable::CreateRaw(this, &SPullRequestEditor::OnFilesListAvailable, Page));
+    UGithubApi::GetFilesInPullRequest(PullRequestData->number, FOnFilesListAvailable::CreateRaw(this, &SPullRequestEditor::OnFilesListAvailable, Page));
     return DockTab;
 }
 
@@ -780,7 +781,7 @@ void SPullRequestEditor::OnFilesListAvailable(const TArray<FCommitFile>& Files, 
     if (Files.IsEmpty())
         return;
     ListFileWidget->SetListFiles(Files, true);
-    UGithubApi::GetFilesInPullRequest(PullRequestData->Info.number, FOnFilesListAvailable::CreateRaw(this, &SPullRequestEditor::OnFilesListAvailable, Page + 1), 9999, Page + 1);
+    UGithubApi::GetFilesInPullRequest(PullRequestData->number, FOnFilesListAvailable::CreateRaw(this, &SPullRequestEditor::OnFilesListAvailable, Page + 1), 9999, Page + 1);
 }
 
 TSharedRef<SDockTab> SPullRequestEditor::CreateDescriptionTab(const FSpawnTabArgs& Args)
@@ -793,7 +794,7 @@ TSharedRef<SDockTab> SPullRequestEditor::CreateDescriptionTab(const FSpawnTabArg
             [
                 SNew(SRichTextBlock)
                 .DecoratorStyleSet(&FAppStyle::Get())
-                .Text(FText::FromString(PullRequestData->Info.body))
+                .Text(FText::FromString(PullRequestData->body))
                 .TextStyle(&FCoreStyle::Get().GetWidgetStyle<FTextBlockStyle>("Text.Large"))
             ]
         ];
@@ -822,7 +823,7 @@ void SPullRequestEditor::Checkout()
         return;
     }
 
-    FString BranchName = PullRequestData->Info.head.ref;
+    FString BranchName = PullRequestData->head.ref;
     if (BranchName.IsEmpty())
     {
         FNotificationInfo Info(LOCTEXT("CheckoutNoBranch", "No branch name found in pull request."));
@@ -939,118 +940,118 @@ void SPullRequestEditor::OnCheckoutComplete(const FSourceControlOperationRef& In
     }
 }
 
-TSharedRef<ITableRow> SPullRequestEditor::GenerateFileRowWidget(TSharedPtr<FFileItem> InItem, const TSharedRef<class STableViewBase>& OwnerTable)
-{
-    static const FSlateFontInfo Font = FCoreStyle::GetDefaultFontStyle("Regular", 12);
+//TSharedRef<ITableRow> SPullRequestEditor::GenerateFileRowWidget(TSharedPtr<FFileItem> InItem, const TSharedRef<class STableViewBase>& OwnerTable)
+//{
+//    static const FSlateFontInfo Font = FCoreStyle::GetDefaultFontStyle("Regular", 12);
+//
+//    const FSlateBrush* IconSamples = FAppStyle::Get().GetBrush(TEXT("Graph.StateNode.Icon"));
+//
+//    if (InItem->status == "added")
+//    {
+//        IconSamples = FAppStyle::Get().GetBrush(TEXT("SourceControl.Add"));
+//    }
+//    else if (InItem->status == "modified")
+//    {
+//        IconSamples = FAppStyle::Get().GetBrush(TEXT("SourceControl.Edit"));
+//    }
+//    else if (InItem->status == "renamed")
+//    {
+//        IconSamples = FAppStyle::Get().GetBrush(TEXT("SourceControl.Integrate"));
+//    }
+//    return SNew(STableRow<TSharedPtr<FPullRequestInformation>>, OwnerTable)
+//        [
+//            SNew(SBox)
+//            .Padding(8)
+//        [
+//            SNew(SHorizontalBox)
+//            + SHorizontalBox::Slot()
+//        .Padding(0, 0, 4, 0)
+//        .AutoWidth()
+//        [
+//            SNew(SImage)
+//            .Image(IconSamples)
+//        ]
+//    + SHorizontalBox::Slot()
+//        .FillWidth(1.0f)
+//        [
+//            SNew(STextBlock)
+//            .Text(FText::FromString(InItem->filename))
+//        .Font(Font)
+//        ]
+//        ]
+//        ];
+//}
 
-    const FSlateBrush* IconSamples = FAppStyle::Get().GetBrush(TEXT("Graph.StateNode.Icon"));
 
-    if (InItem->Info.status == "added")
-    {
-        IconSamples = FAppStyle::Get().GetBrush(TEXT("SourceControl.Add"));
-    }
-    else if (InItem->Info.status == "modified")
-    {
-        IconSamples = FAppStyle::Get().GetBrush(TEXT("SourceControl.Edit"));
-    }
-    else if (InItem->Info.status == "renamed")
-    {
-        IconSamples = FAppStyle::Get().GetBrush(TEXT("SourceControl.Integrate"));
-    }
-    return SNew(STableRow<TSharedPtr<FPullRequestItem>>, OwnerTable)
-        [
-            SNew(SBox)
-            .Padding(8)
-        [
-            SNew(SHorizontalBox)
-            + SHorizontalBox::Slot()
-        .Padding(0, 0, 4, 0)
-        .AutoWidth()
-        [
-            SNew(SImage)
-            .Image(IconSamples)
-        ]
-    + SHorizontalBox::Slot()
-        .FillWidth(1.0f)
-        [
-            SNew(STextBlock)
-            .Text(FText::FromString(InItem->Info.filename))
-        .Font(Font)
-        ]
-        ]
-        ];
-}
-
-
-void SPullRequestEditor::OnFileDoubleClicked(TSharedPtr<FFileItem> Entry)
-{
-    if (OpenDiffStatus.bIsOpening)
-        return;
-
-    OpenDiffStatus.bIsOpening = true;
-    OpenDiffStatus.Item = Entry;
-    OpenDiffStatus.NumFileDownload = 0;
-    UGithubApi::DownloadFile(FOnFileDownloadComplete::CreateLambda([this](const FString& GamePath, int Code, const FString& Content)
-        {
-            OpenDiffStatus.bHeadVersionDownloadSuccess = !GamePath.IsEmpty();
-            OpenDiffStatus.HeadVersionFile = GamePath;
-            OpenDiffStatus.NumFileDownload++;
-            if (OpenDiffStatus.NumFileDownload == 2)
-            {
-                OpenDiff();
-            }
-
-        }), Entry->Info.filename, Entry->PRInfo->Info.head.sha);
-
-    UGithubApi::DownloadFile(FOnFileDownloadComplete::CreateLambda([this](const FString& GamePath, int Code, const FString& Content)
-        {
-            OpenDiffStatus.bBaseVersionDownloadSuccess = !GamePath.IsEmpty();
-            OpenDiffStatus.BaseVersionFile = GamePath;
-            OpenDiffStatus.NumFileDownload++;
-            if (OpenDiffStatus.NumFileDownload == 2)
-            {
-                OpenDiff();
-            }
-
-        }), Entry->Info.filename, Entry->PRInfo->Info.base.sha);
-}
-
-void SPullRequestEditor::OpenDiff()
-{
-    if (!OpenDiffStatus.bIsOpening)
-        return;
-    UPackage* BaseTempPkg = nullptr;
-    UPackage* HeadTempPkg = nullptr;
-    UObject* HeadAsset = nullptr;
-    UObject* BaseAsset = nullptr;
-    FString AssetName = FPaths::GetBaseFilename(OpenDiffStatus.Item->Info.filename, true);
-    if (OpenDiffStatus.bHeadVersionDownloadSuccess)
-    {
-        HeadTempPkg = LoadPackage(NULL, *OpenDiffStatus.HeadVersionFile, LOAD_ForDiff | LOAD_DisableCompileOnLoad);
-        HeadAsset = FindObject<UObject>(HeadTempPkg, *AssetName);
-        OpenedFiles.AddUnique(HeadTempPkg);
-    }
-
-    if (OpenDiffStatus.bBaseVersionDownloadSuccess)
-    {
-        BaseTempPkg = LoadPackage(NULL, *OpenDiffStatus.BaseVersionFile, LOAD_ForDiff | LOAD_DisableCompileOnLoad);
-        BaseAsset = FindObject<UObject>(BaseTempPkg, *AssetName);
-        OpenedFiles.AddUnique(BaseTempPkg);
-    }
-
-    FAssetToolsModule& AssetToolsModule = FModuleManager::LoadModuleChecked<FAssetToolsModule>(TEXT("AssetTools"));
-    if (HeadAsset != NULL && BaseAsset != NULL)
-    {
-        FRevisionInfo OldRevision = { OpenDiffStatus.Item->PRInfo->Info.base.sha, 0, {} };
-        FRevisionInfo CurrentRevision = { OpenDiffStatus.Item->PRInfo->Info.head.sha, 1, {}};
-        AssetToolsModule.Get().DiffAssets(BaseAsset, HeadAsset, OldRevision, CurrentRevision);
-    }
-    else if (HeadAsset != NULL)
-    {
-        AssetToolsModule.Get().OpenEditorForAssets({HeadAsset});
-    }
-    OpenDiffStatus.bIsOpening = false;
-}
+//void SPullRequestEditor::OnFileDoubleClicked(TSharedPtr<FFileItem> Entry)
+//{
+//    if (OpenDiffStatus.bIsOpening)
+//        return;
+//
+//    OpenDiffStatus.bIsOpening = true;
+//    OpenDiffStatus.Item = Entry;
+//    OpenDiffStatus.NumFileDownload = 0;
+//    UGithubApi::DownloadFile(FOnFileDownloadComplete::CreateLambda([this](const FString& GamePath, int Code, const FString& Content)
+//        {
+//            OpenDiffStatus.bHeadVersionDownloadSuccess = !GamePath.IsEmpty();
+//            OpenDiffStatus.HeadVersionFile = GamePath;
+//            OpenDiffStatus.NumFileDownload++;
+//            if (OpenDiffStatus.NumFileDownload == 2)
+//            {
+//                OpenDiff();
+//            }
+//
+//        }), Entry->filename, Entry->PRInfo->head.sha);
+//
+//    UGithubApi::DownloadFile(FOnFileDownloadComplete::CreateLambda([this](const FString& GamePath, int Code, const FString& Content)
+//        {
+//            OpenDiffStatus.bBaseVersionDownloadSuccess = !GamePath.IsEmpty();
+//            OpenDiffStatus.BaseVersionFile = GamePath;
+//            OpenDiffStatus.NumFileDownload++;
+//            if (OpenDiffStatus.NumFileDownload == 2)
+//            {
+//                OpenDiff();
+//            }
+//
+//        }), Entry->filename, Entry->PRInfo->base.sha);
+//}
+//
+//void SPullRequestEditor::OpenDiff()
+//{
+//    if (!OpenDiffStatus.bIsOpening)
+//        return;
+//    UPackage* BaseTempPkg = nullptr;
+//    UPackage* HeadTempPkg = nullptr;
+//    UObject* HeadAsset = nullptr;
+//    UObject* BaseAsset = nullptr;
+//    FString AssetName = FPaths::GetBaseFilename(OpenDiffStatus.Item->filename, true);
+//    if (OpenDiffStatus.bHeadVersionDownloadSuccess)
+//    {
+//        HeadTempPkg = LoadPackage(NULL, *OpenDiffStatus.HeadVersionFile, LOAD_ForDiff | LOAD_DisableCompileOnLoad);
+//        HeadAsset = FindObject<UObject>(HeadTempPkg, *AssetName);
+//        OpenedFiles.AddUnique(HeadTempPkg);
+//    }
+//
+//    if (OpenDiffStatus.bBaseVersionDownloadSuccess)
+//    {
+//        BaseTempPkg = LoadPackage(NULL, *OpenDiffStatus.BaseVersionFile, LOAD_ForDiff | LOAD_DisableCompileOnLoad);
+//        BaseAsset = FindObject<UObject>(BaseTempPkg, *AssetName);
+//        OpenedFiles.AddUnique(BaseTempPkg);
+//    }
+//
+//    FAssetToolsModule& AssetToolsModule = FModuleManager::LoadModuleChecked<FAssetToolsModule>(TEXT("AssetTools"));
+//    if (HeadAsset != NULL && BaseAsset != NULL)
+//    {
+//        FRevisionInfo OldRevision = { OpenDiffStatus.Item->PRInfo->base.sha, 0, {} };
+//        FRevisionInfo CurrentRevision = { OpenDiffStatus.Item->PRInfo->head.sha, 1, {}};
+//        AssetToolsModule.Get().DiffAssets(BaseAsset, HeadAsset, OldRevision, CurrentRevision);
+//    }
+//    else if (HeadAsset != NULL)
+//    {
+//        AssetToolsModule.Get().OpenEditorForAssets({HeadAsset});
+//    }
+//    OpenDiffStatus.bIsOpening = false;
+//}
 
 
 
@@ -1221,7 +1222,7 @@ void SPullRequestsEditor::Construct(const FArguments& InArgs, const FTabId& Cons
                     ]
                     + SScrollBox::Slot()
                     [
-					    SAssignNew(Widget, SListView<TSharedPtr<FPullRequestItem>>)
+					    SAssignNew(Widget, SListView<TSharedPtr<FPullRequestInformation>>)
 					    .ListItemsSource(&PullRequestItems)
 				        //.ItemHeight(20)
 				        .SelectionMode(ESelectionMode::Single)
@@ -1257,19 +1258,19 @@ void SPullRequestsEditor::Construct(const FArguments& InArgs, const FTabId& Cons
     RefreshPullRequest();
 }
 
-TSharedRef<ITableRow> SPullRequestsEditor::GenerateCategoryRowWidget(TSharedPtr<FPullRequestItem> InItem, const TSharedRef<class STableViewBase>& OwnerTable)
+TSharedRef<ITableRow> SPullRequestsEditor::GenerateCategoryRowWidget(TSharedPtr<FPullRequestInformation> InItem, const TSharedRef<class STableViewBase>& OwnerTable)
 {
     return SNew(SPullRequestRow, OwnerTable, InItem);
 }
 
-void SPullRequestsEditor::OnMarkerListDoubleClicked(TSharedPtr<FPullRequestItem> Entry)
+void SPullRequestsEditor::OnMarkerListDoubleClicked(TSharedPtr<FPullRequestInformation> Entry)
 {
-    TSharedPtr<SDockTab> NewTab = SNew(SDockTab).Label(FText::FromString(Entry->Info.title))
+    TSharedPtr<SDockTab> NewTab = SNew(SDockTab).Label(FText::FromString(Entry->title))
         [
             SNew(SPullRequestEditor, MajorTab.ToSharedRef()).PullRequestId(Entry)
         ];
 
-    FName TabId = *FString::Printf(TEXT("GithubPR_%d"), (int32)Entry->Info.number);
+    FName TabId = *FString::Printf(TEXT("GithubPR_%d"), (int32)Entry->number);
     if(TSharedPtr<SDockTab> ActiveTab = TabManager->FindExistingLiveTab(TabId))
     {
         ActiveTab->RequestCloseTab();
@@ -1295,9 +1296,7 @@ void SPullRequestsEditor::RefreshPullRequest()
         }
         for (auto& Item : ListPullRequest)
         {
-            auto ListItem = MakeShared<FPullRequestItem>();
-            ListItem->Info = Item;
-            AllPullRequestItems.Add(ListItem);
+            AllPullRequestItems.Add(MakeShared<FPullRequestInformation>(Item));
         }
         UGithubApi::GetPullRequests(Delegate, State, Page + 1);
 
@@ -1316,9 +1315,9 @@ void SPullRequestsEditor::UpdateAuthorList()
     TSet<FString> UniqueAuthors;
     for (const auto& Item : AllPullRequestItems)
     {
-        if (!Item->Info.user.login.IsEmpty())
+        if (!Item->user.login.IsEmpty())
         {
-            UniqueAuthors.Add(Item->Info.user.login);
+            UniqueAuthors.Add(Item->user.login);
         }
     }
 
@@ -1344,7 +1343,7 @@ void SPullRequestsEditor::ApplyFilters()
         // Apply author filter
         if (SelectedAuthor.IsValid() && *SelectedAuthor != TEXT("All Authors"))
         {
-            if (Item->Info.user.login != *SelectedAuthor)
+            if (Item->user.login != *SelectedAuthor)
             {
                 bPassesFilter = false;
             }
@@ -1418,7 +1417,7 @@ FText SPullRequestsEditor::GetCleanCacheTooltip() const
     return FText::FromString(FString::Printf(TEXT("Remove cache in save dir (%d files)"), Files.Num()));
 }
 
-void SPullRequestRow::Construct(const FArguments& InArgs, const TSharedRef<STableViewBase>& InOwnerTableView, TSharedPtr<FPullRequestItem> InItem)
+void SPullRequestRow::Construct(const FArguments& InArgs, const TSharedRef<STableViewBase>& InOwnerTableView, TSharedPtr<FPullRequestInformation> InItem)
 {
     Item = InItem;
     UGithubApi::DownloadAvatar(FOnFileDownloadComplete::CreateLambda([this](const FString& GamePath, int Code, const FString& InContent)
@@ -1427,8 +1426,8 @@ void SPullRequestRow::Construct(const FArguments& InArgs, const TSharedRef<STabl
                 return;
             Avatar = MakeShared<FSlateDynamicImageBrush>(FSlateDynamicImageBrush(FName(GamePath), FVector2D(16, 16)));
         }),
-        Item->Info.user.avatar_url, Item->Info.user.id + ".png");
-    SMultiColumnTableRow<TSharedPtr<FPullRequestItem>>::Construct(FSuperRowType::FArguments(), InOwnerTableView);
+        Item->user.avatar_url, Item->user.id + ".png");
+    SMultiColumnTableRow<TSharedPtr<FPullRequestInformation>>::Construct(FSuperRowType::FArguments(), InOwnerTableView);
 }
 
 TSharedRef<SWidget> SPullRequestRow::GenerateWidgetForColumn(const FName& ColumnName)
@@ -1453,7 +1452,7 @@ TSharedRef<SWidget> SPullRequestRow::GenerateWidgetForColumn(const FName& Column
                 .FillWidth(1.0f)
                 [
                     SNew(STextBlock)
-                    .Text(FText::FromString(Item->Info.title))
+                    .Text(FText::FromString(Item->title))
                     .Font(Font)
                 ]
                 ];
@@ -1475,7 +1474,7 @@ TSharedRef<SWidget> SPullRequestRow::GenerateWidgetForColumn(const FName& Column
                     .FillWidth(1.0f)
                     [
                         SNew(STextBlock)
-                        .Text(FText::FromString(Item->Info.user.login))
+                        .Text(FText::FromString(Item->user.login))
                         .Font(Font)
                     ]
                 ];

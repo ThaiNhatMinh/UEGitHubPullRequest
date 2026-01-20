@@ -4,6 +4,8 @@
 #include "SFileReviewComments.h"
 #include "Widgets/Text/SMultiLineEditableText.h"
 
+#include "Framework/Notifications/NotificationManager.h"
+#include "Widgets/Notifications/SNotificationList.h"
 #include "SlateOptMacros.h"
 
 #define LOCTEXT_NAMESPACE "SPullRequestsEditor"
@@ -11,6 +13,8 @@
 BEGIN_SLATE_FUNCTION_BUILD_OPTIMIZATION
 void SFileReviewComments::Construct(const FArguments& InArgs)
 {
+	CommitFile = InArgs._CommitFile.Get();
+	PRInfo = InArgs._PullRequestInfo.Get();
     // Border color
     FLinearColor BorderColor = FLinearColor(0.3f, 0.3f, 0.3f, 1.0f);
     FLinearColor ShadowColor = FLinearColor(0.0f, 0.0f, 0.0f, 0.5f);
@@ -76,12 +80,30 @@ void SFileReviewComments::Construct(const FArguments& InArgs)
                                     ]
                                 ]
                             ]
-                        ]
-                        // Button text area
-                        + SVerticalBox::Slot()
-                        .AutoHeight()
-                        [
-                            SNew(SHorizontalBox)
+                            // Button text area
+                            + SVerticalBox::Slot()
+                            .AutoHeight()
+                            [
+                                SNew(SHorizontalBox)
+                                + SHorizontalBox::Slot()
+                                .FillWidth(1.0f)
+                                .Padding(0, 0, 10, 0)
+                                [
+                                    SNew(SButton)
+                                    .Text(FText::FromString("Add Single Comment"))
+                                    .OnClicked(this, &SFileReviewComments::OnAddSingleComment)
+                                ]
+                                + SHorizontalBox::Slot()
+                                .FillWidth(1.0f)
+                                .Padding(10, 0, 0, 0)
+                                [
+                                    SNew(SButton)
+                                    .ButtonStyle(&FAppStyle::Get().GetWidgetStyle<FButtonStyle>("PrimaryButton"))
+                                    .Text(FText::FromString("Start A Review"))
+                                    .OnClicked(this, &SFileReviewComments::OnStartReview)
+                                ]
+
+                            ]
                         ]
                     ]
                 ]
@@ -91,5 +113,57 @@ void SFileReviewComments::Construct(const FArguments& InArgs)
 	
 }
 END_SLATE_FUNCTION_BUILD_OPTIMIZATION
+
+
+FReply SFileReviewComments::OnAddSingleComment()
+{
+	FString CommentText = CommentWidget->GetText().ToString();
+    if (CommentText.IsEmpty())
+    {
+        FNotificationInfo Info(FText::FromString(TEXT("Commment can not empty")));
+        Info.bFireAndForget = true;
+        Info.ExpireDuration = 5.0f;
+        Info.Image = FCoreStyle::Get().GetBrush(TEXT("Icons.Warning"));
+        FSlateNotificationManager::Get().AddNotification(Info);
+		return FReply::Handled();
+    }
+	if (!PRInfo.IsValid() || !CommitFile.IsValid())
+	{
+		FNotificationInfo Info(FText::FromString(TEXT("Pull Request info is not valid")));
+		Info.bFireAndForget = true;
+		Info.ExpireDuration = 5.0f;
+		Info.Image = FCoreStyle::Get().GetBrush(TEXT("Icons.Warning"));
+		FSlateNotificationManager::Get().AddNotification(Info);
+        return FReply::Handled();
+    }
+
+    UGithubApi::CreateComment({}, PRInfo->number, CommentText, CommitFile->sha, CommitFile->filename);
+	return FReply::Handled();
+}
+
+FReply SFileReviewComments::OnStartReview()
+{
+    FString CommentText = CommentWidget->GetText().ToString();
+    if (CommentText.IsEmpty())
+    {
+        FNotificationInfo Info(FText::FromString(TEXT("Commment can not empty")));
+        Info.bFireAndForget = true;
+        Info.ExpireDuration = 5.0f;
+        Info.Image = FCoreStyle::Get().GetBrush(TEXT("Icons.Warning"));
+        FSlateNotificationManager::Get().AddNotification(Info);
+        return FReply::Handled();
+    }
+    if (!PRInfo.IsValid())
+    {
+        FNotificationInfo Info(FText::FromString(TEXT("Pull Request info is not valid")));
+        Info.bFireAndForget = true;
+        Info.ExpireDuration = 5.0f;
+        Info.Image = FCoreStyle::Get().GetBrush(TEXT("Icons.Warning"));
+        FSlateNotificationManager::Get().AddNotification(Info);
+        return FReply::Handled();
+    }
+
+    return FReply::Handled();
+}
 
 #undef LOCTEXT_NAMESPACE
