@@ -216,6 +216,9 @@ struct FCommentBody
 
 	UPROPERTY()
 	FString start_side = "RIGHT";
+
+	UPROPERTY()
+	FString subject_type = "file";
 };
 
 USTRUCT()

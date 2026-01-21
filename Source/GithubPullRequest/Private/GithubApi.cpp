@@ -536,7 +536,7 @@ bool UGithubApi::CreateReview(FOnCreateReviewComplete OnCreateReviewComplete, in
 		{
 			if (!InResponse.IsValid())
 			{
-				OnCreateReviewComplete.ExecuteIfBound(404, TEXT("Response is not valid"));
+				OnError(InResponse);
 				return;
 			}
 			auto Code = InResponse->GetResponseCode();
@@ -577,7 +577,7 @@ bool UGithubApi::CreateComment(FOnCreateReviewComplete OnCreateReviewComplete, i
 	BodyStruct.path = FilePath;
 
 	auto OutJsonObject = FJsonObjectConverter::UStructToJsonObject(BodyStruct, 0, 0);
-
+	OutJsonObject->RemoveField(TEXT("line"));
 	FString OutputString;
 	TSharedRef< TJsonWriter<> > Writer = TJsonWriterFactory<>::Create(&OutputString);
 	FJsonSerializer::Serialize(OutJsonObject.ToSharedRef(), Writer);
@@ -592,7 +592,7 @@ bool UGithubApi::CreateComment(FOnCreateReviewComplete OnCreateReviewComplete, i
 				return;
 			}
 			auto Code = InResponse->GetResponseCode();
-			if (Code != 200)
+			if (Code != 201)
 			{
 				OnError(InResponse);
 				return;
