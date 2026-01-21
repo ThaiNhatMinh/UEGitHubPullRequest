@@ -465,10 +465,10 @@ struct FComment
 	FString url;
 
 	UPROPERTY()
-	int pull_request_review_id;
+	int64 pull_request_review_id;
 
 	UPROPERTY()
-	int id;
+	int64 id;
 
 	UPROPERTY()
 	FString node_id;
@@ -492,7 +492,7 @@ struct FComment
 	FString original_commit_id;
 
 	UPROPERTY()
-	int in_reply_to_id;
+	int64 in_reply_to_id;
 	
 	UPROPERTY()
 	FCommitUserDetail user;

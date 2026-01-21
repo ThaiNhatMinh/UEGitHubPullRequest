@@ -16,17 +16,22 @@ public:
 	SLATE_BEGIN_ARGS(SGithubCommentWidget)
 	{}
 		SLATE_ARGUMENT(FComment, CommentData)
+		SLATE_ARGUMENT(bool, ShowReplyInput)
 	SLATE_END_ARGS()
 
 	/** Constructs this widget with InArgs */
 	void Construct(const FArguments& InArgs);
 
+	void SetReply(const TArray<FComment>& ReplyComments);
+
 protected:
 	const FSlateBrush* GetAvatar() const;
 
 protected:
+	bool bShowReplyInput = true;
 	FComment CommentData;
 	TSharedPtr<struct FSlateDynamicImageBrush> Avatar;
 
-	TSharedPtr<SMultiLineEditableText> ReplyWidget;
+	TSharedPtr<SMultiLineEditableText> ReplyInputWidget;
+	TSharedPtr<SVerticalBox> RepliesWidget;
 };

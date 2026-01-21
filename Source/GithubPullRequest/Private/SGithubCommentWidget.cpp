@@ -12,6 +12,7 @@ BEGIN_SLATE_FUNCTION_BUILD_OPTIMIZATION
 void SGithubCommentWidget::Construct(const FArguments& InArgs)
 {
 	CommentData = InArgs._CommentData;
+    bShowReplyInput = InArgs._ShowReplyInput;
 
     // Border color
     FLinearColor BorderColor = FLinearColor(0.3f, 0.3f, 0.3f, 1.0f);
@@ -83,6 +84,16 @@ void SGithubCommentWidget::Construct(const FArguments& InArgs)
                                                             .TextStyle(FAppStyle::Get(), "NormalText")
                                                     ]
                                             ]
+                                            // Reply comment area
+                                            + SVerticalBox::Slot()
+											.AutoHeight()
+                                            [
+                                                SNew(SBorder)
+                                                    .BorderImage(FAppStyle::Get().GetBrush("Brushes.Panel"))
+                                                    [
+                                                        SAssignNew(RepliesWidget, SVerticalBox)
+                                                    ]
+                                            ]
                                             // Reply text area
                                             + SVerticalBox::Slot()
                                             .Padding(16, 12)
@@ -90,11 +101,12 @@ void SGithubCommentWidget::Construct(const FArguments& InArgs)
                                             [
                                                 SNew(SBorder)
                                                 .BorderImage(FAppStyle::Get().GetBrush("Brushes.Panel"))
+												.Visibility(bShowReplyInput ? EVisibility::Visible : EVisibility::Collapsed)
                                                 [
                                                     SNew(SBox)
                                                     .MinDesiredHeight(30)
                                                     [
-                                                        SAssignNew(ReplyWidget, SMultiLineEditableText)
+                                                        SAssignNew(ReplyInputWidget, SMultiLineEditableText)
                                                         .HintText(LOCTEXT("LeaveComment", "Write a reply"))
                                                         .AutoWrapText(true)
                                                     ]
@@ -118,6 +130,24 @@ void SGithubCommentWidget::Construct(const FArguments& InArgs)
         }),
         CommentData.user.avatar_url, FString::Printf(TEXT("%d.png"), CommentData.user.id));
 }
+
+void SGithubCommentWidget::SetReply(const TArray<FComment>& ReplyComments)
+{
+    if (!RepliesWidget.IsValid())
+        return;
+    RepliesWidget->ClearChildren();
+    for (auto& Reply : ReplyComments)
+    {
+        RepliesWidget->AddSlot()
+        .AutoHeight()
+        [
+            SNew(SGithubCommentWidget)
+            .CommentData(Reply)
+            .ShowReplyInput(false)
+        ];
+    }
+}
+
 const FSlateBrush* SGithubCommentWidget::GetAvatar() const
 {
     return Avatar.Get();

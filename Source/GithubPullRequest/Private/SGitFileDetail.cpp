@@ -186,13 +186,30 @@ void SGitFileDetail::UpdateCommentForFile()
     FileItem->AllComments = Results;
     if (!FileDetail)
         return;
+    TMap<int64, TArray<FComment>> ReplyComments;
+	TMap<int64, TSharedPtr<SGithubCommentWidget>> CommentWidgets;
+
     for (auto& Comment : FileItem->AllComments)
     {
+		if (Comment.in_reply_to_id != 0)
+		{
+			ReplyComments.FindOrAdd(Comment.in_reply_to_id).Add(Comment);
+            continue;
+		}
+		TSharedPtr<SGithubCommentWidget> CommentWidget;
         FileDetail->AddSlot()
 		.AutoHeight()
         [
-			SNew(SGithubCommentWidget)
+			SAssignNew(CommentWidget, SGithubCommentWidget)
 				.CommentData(Comment)
         ];
+		CommentWidgets.Add(Comment.id, CommentWidget);
+    }
+    for (auto& [Id, Widget] : CommentWidgets)
+    {
+		if (ReplyComments.Contains(Id))
+		{
+			Widget->SetReply(ReplyComments[Id]);
+		}
     }
 }
