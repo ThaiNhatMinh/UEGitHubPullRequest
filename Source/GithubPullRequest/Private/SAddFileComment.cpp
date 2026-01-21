@@ -1,7 +1,7 @@
 // Fill out your copyright notice in the Description page of Project Settings.
 
 
-#include "SFileReviewComments.h"
+#include "SAddFileComment.h"
 #include "Widgets/Text/SMultiLineEditableText.h"
 
 #include "Framework/Notifications/NotificationManager.h"
@@ -11,7 +11,7 @@
 #define LOCTEXT_NAMESPACE "SPullRequestsEditor"
 
 BEGIN_SLATE_FUNCTION_BUILD_OPTIMIZATION
-void SFileReviewComments::Construct(const FArguments& InArgs)
+void SAddFileComment::Construct(const FArguments& InArgs)
 {
 	CommitFile = InArgs._CommitFile.Get();
     PRInfo = InArgs._PullRequestInfo.Get();
@@ -93,7 +93,7 @@ void SFileReviewComments::Construct(const FArguments& InArgs)
                                 [
                                     SNew(SButton)
                                     .Text(FText::FromString("Add Single Comment"))
-                                    .OnClicked(this, &SFileReviewComments::OnAddSingleComment)
+                                    .OnClicked(this, &SAddFileComment::OnAddSingleComment)
                                 ]
                                 + SHorizontalBox::Slot()
                                 .FillWidth(1.0f)
@@ -102,7 +102,7 @@ void SFileReviewComments::Construct(const FArguments& InArgs)
                                     SNew(SButton)
                                     .ButtonStyle(&FAppStyle::Get().GetWidgetStyle<FButtonStyle>("PrimaryButton"))
                                     .Text(FText::FromString("Start A Review"))
-                                    .OnClicked(this, &SFileReviewComments::OnStartReview)
+                                    .OnClicked(this, &SAddFileComment::OnStartReview)
                                 ]
 
                             ]
@@ -117,7 +117,7 @@ void SFileReviewComments::Construct(const FArguments& InArgs)
 END_SLATE_FUNCTION_BUILD_OPTIMIZATION
 
 
-FReply SFileReviewComments::OnAddSingleComment()
+FReply SAddFileComment::OnAddSingleComment()
 {
 	FString CommentText = CommentWidget->GetText().ToString();
     if (CommentText.IsEmpty())
@@ -139,11 +139,23 @@ FReply SFileReviewComments::OnAddSingleComment()
         return FReply::Handled();
     }
 
-    UGithubApi::CreateComment({}, PRInfo->number, CommentText, CommitSha, CommitFile->filename);
+    UGithubApi::CreateComment(FOnCreateReviewComplete::CreateLambda([SharedThis = AsWeak()](int Code, const FString& Content)
+        {
+			FNotificationInfo Info(FText::FromString(TEXT("Add comment success")));
+			Info.bFireAndForget = true;
+			Info.ExpireDuration = 5.0f;
+			Info.Image = FCoreStyle::Get().GetBrush(TEXT("Icons.Success"));
+			FSlateNotificationManager::Get().AddNotification(Info);
+
+            if (auto Widget = StaticCastWeakPtr<SAddFileComment>(SharedThis).Pin())
+            {
+                Widget->CommentWidget->SetText(FText::GetEmpty());
+            }
+        }), PRInfo->number, CommentText, CommitSha, CommitFile->filename);
 	return FReply::Handled();
 }
 
-FReply SFileReviewComments::OnStartReview()
+FReply SAddFileComment::OnStartReview()
 {
     FString CommentText = CommentWidget->GetText().ToString();
     if (CommentText.IsEmpty())

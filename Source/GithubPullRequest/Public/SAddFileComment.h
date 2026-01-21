@@ -10,10 +10,10 @@
 /**
  * 
  */
-class GITHUBPULLREQUEST_API SFileReviewComments : public SCompoundWidget
+class GITHUBPULLREQUEST_API SAddFileComment : public SCompoundWidget
 {
 public:
-	SLATE_BEGIN_ARGS(SFileReviewComments)
+	SLATE_BEGIN_ARGS(SAddFileComment)
 	{}
 	SLATE_ATTRIBUTE(FString, CommitSha)
 	SLATE_ATTRIBUTE(TSharedPtr<FCommitFile>, CommitFile)

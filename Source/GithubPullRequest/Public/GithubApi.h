@@ -148,6 +148,9 @@ struct FPullRequestInformation
 	FPullRequestRefInfo head;
 	UPROPERTY()
 	FPullRequestRefInfo base;
+
+	TArray<FComment> AllComments;
+	FSimpleMulticastDelegate OnCommentAvailable;
 };
 
 USTRUCT()
@@ -203,7 +206,7 @@ struct FCommentBody
 	FString path;
 
 	UPROPERTY()
-	int position = 0;
+	int position = 1;
 
 	UPROPERTY()
 	FString side = "RIGHT"; // LEFT / RIGHT
@@ -374,6 +377,8 @@ struct FCommitFile
 	FString content_url;
 	UPROPERTY()
 	FString patch;
+
+	TArray<FComment> AllComments;
 };
 
 USTRUCT()
@@ -415,7 +420,123 @@ struct FCommitFullData
 	TArray<FCommitFile> files;
 };
 
+USTRUCT()
+struct FIssueComment
+{
+	GENERATED_BODY();
+
+	UPROPERTY()
+	int id;
+
+	UPROPERTY()
+	FString node_id;
+
+	UPROPERTY()
+	FString url;
+
+	UPROPERTY()
+	FString html_url;
+
+	UPROPERTY()
+	FString body;
+
+	UPROPERTY()
+	FCommitUserDetail user;
+
+	UPROPERTY()
+	FString created_at;
+
+	UPROPERTY()
+	FString updated_at;
+
+	UPROPERTY()
+	FString issue_url;
+
+	UPROPERTY()
+	FString author_association;
+};
+
+USTRUCT()
+struct FComment
+{
+	GENERATED_BODY();
+	
+	UPROPERTY()
+	FString url;
+
+	UPROPERTY()
+	int pull_request_review_id;
+
+	UPROPERTY()
+	int id;
+
+	UPROPERTY()
+	FString node_id;
+
+	UPROPERTY()
+	FString diff_hunk;
+
+	UPROPERTY()
+	FString path;
+
+	UPROPERTY()
+	int position;
+
+	UPROPERTY()
+	int original_position;
+
+	UPROPERTY()
+	FString commit_id;
+
+	UPROPERTY()
+	FString original_commit_id;
+
+	UPROPERTY()
+	int in_reply_to_id;
+	
+	UPROPERTY()
+	FCommitUserDetail user;
+
+	UPROPERTY()
+	FString body;
+
+	UPROPERTY()
+	FString created_at;
+
+	UPROPERTY()
+	FString updated_at;
+
+	UPROPERTY()
+	FString html_url;
+
+	UPROPERTY()
+	FString pull_request_url;
+
+	UPROPERTY()
+	FString author_association;
+
+	UPROPERTY()
+	int start_line = 0;
+
+	UPROPERTY()
+	int original_start_line = 0;
+
+	UPROPERTY()
+	FString start_side;
+
+	UPROPERTY()
+	int line = 0;
+
+	UPROPERTY()
+	int original_line = 0;
+
+	UPROPERTY()
+	FString side;
+};
+
 DECLARE_DELEGATE_ThreeParams(FOnPullRequestListAvailable, const TArray<FPullRequestInformation>& ListPullRequest, int Code, const FString& Content);
+DECLARE_DELEGATE_ThreeParams(FOnListCommentAvailable, const TArray<FComment>& ListComment, int Code, const FString& Content);
+DECLARE_DELEGATE_ThreeParams(FOnListIssueCommentAvailable, const TArray<FIssueComment>& ListComment, int Code, const FString& Content);
 DECLARE_DELEGATE_ThreeParams(FOnPullRequestAvailable, const FPullRequestInformation& PullRequest, int Code, const FString& Content);
 DECLARE_DELEGATE_ThreeParams(FOnFilesListAvailable, const TArray<FCommitFile>& Files, int Code, const FString& Content);
 DECLARE_DELEGATE_ThreeParams(FOnCommitListAvailable, const TArray<FCommitFullData>& Commits, int Code, const FString& Content);
@@ -451,6 +572,18 @@ public:
 	* https://docs.github.com/en/rest/pulls/comments?apiVersion=2022-11-28#create-a-review-comment-for-a-pull-request
 	*/
 	static bool CreateComment(FOnCreateReviewComplete OnCreateReviewComplete, int PullNumber, const FString& Body, const FString& CommitId, const FString& FilePath);
+
+
+	/*
+	* https://docs.github.com/en/rest/pulls/comments?apiVersion=2022-11-28#list-review-comments-on-a-pull-request
+	*/
+	static bool ListComment(FOnListCommentAvailable OnListCommentAvailable, int PullNumber, int Page = 1, int NumberPage = 100);
+
+
+	/*
+	* https://docs.github.com/en/rest/issues/comments?apiVersion=2022-11-28#list-issue-comments
+	*/
+	static bool ListIssueComment(FOnListIssueCommentAvailable OnListCommentAvailable, int PullNumber, int Page = 1, int NumberPage = 100);
 
 	/*
 	* https://docs.github.com/en/rest/commits/commits?apiVersion=2022-11-28#list-commits

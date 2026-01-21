@@ -3,7 +3,8 @@
 
 #include "SGitListFileChangedWidget.h"
 #include "Widgets/Input/SSearchBox.h"
-#include "SFileReviewComments.h"
+#include "SAddFileComment.h"
+#include "SGitFileDetail.h"
 
 #include "SlateOptMacros.h"
 #include "AssetToolsModule.h"
@@ -17,12 +18,8 @@ void SGitListFileChangedWidget::Construct(const FArguments& InArgs)
     bShowSearchBox = InArgs._ShowSearchBox.Get();
     bShowViewedMarker = InArgs._ShowViewedMarker.Get();
 	PRInfo = InArgs._PullRequestInfo.Get();
-
-    for (auto& File : Files)
-    {
-        ListFileItems.Add(MakeShared<FCommitFile>(File));
-    }
-
+    SetListFiles(Files);
+ 
     TSharedPtr<SSearchBox> SearchBox;
     SAssignNew(ListFileWidget, SListView<TSharedPtr<FCommitFile>>)
         .ListItemsSource(&ListFileItems)
@@ -71,7 +68,8 @@ void SGitListFileChangedWidget::SetListFiles(const TArray<FCommitFile> NewFiles,
     {
         ListFileItems.Add(MakeShared<FCommitFile>(File));
     }
-    ListFileWidget->RebuildList();
+    if (ListFileWidget)
+        ListFileWidget->RebuildList();
 }
 
 
@@ -81,96 +79,22 @@ void SGitListFileChangedWidget::OnFilterTextCommitted(const FText& InFilterText,
 
 TSharedRef<ITableRow> SGitListFileChangedWidget::GenerateFileRowWidget(TSharedPtr<FCommitFile> InItem, const TSharedRef<class STableViewBase>& OwnerTable)
 {
-    static const FSlateFontInfo Font = FCoreStyle::GetDefaultFontStyle("Regular", 12);
-
-    const FSlateBrush* IconSamples = FAppStyle::Get().GetBrush(TEXT("Graph.StateNode.Icon"));
-
-    if (InItem->status == "added")
-    {
-        IconSamples = FAppStyle::Get().GetBrush(TEXT("SourceControl.Add"));
-    }
-    else if (InItem->status == "modified")
-    {
-        IconSamples = FAppStyle::Get().GetBrush(TEXT("SourceControl.Edit"));
-    }
-    else if (InItem->status == "renamed")
-    {
-        IconSamples = FAppStyle::Get().GetBrush(TEXT("SourceControl.Integrate"));
-    }
     return SNew(STableRow<TSharedPtr<FCommitFile>>, OwnerTable)
         [
-            SNew(SBox)
-                .Padding(8)
-                [
-                    SNew(SHorizontalBox)
-                        + SHorizontalBox::Slot()
-                        .Padding(0, 0, 4, 0)
-                        .AutoWidth()
-                        [
-                            SNew(SImage)
-                                .Image(IconSamples)
-                        ]
-                        + SHorizontalBox::Slot()
-                        .FillWidth(1.0f)
-                        [
-                            SNew(STextBlock)
-                                .Text(FText::FromString(InItem->filename))
-                                .Font(Font)
-                        ]
-                        +SHorizontalBox::Slot()
-                        .AutoWidth()
-                        .Padding(5, 0)
-                        [
-                            SNew(STextBlock)
-                                .Text(FText::FromString(FString::Printf(TEXT("+%d -%d"), InItem->additions, InItem->deletions)))
-                                .Font(FCoreStyle::GetDefaultFontStyle("Regular", 9))
-                                .ColorAndOpacity(FSlateColor(FLinearColor::Gray))
-                        ]
-                        +SHorizontalBox::Slot()
-                        .AutoWidth()
-                        .Padding(5, 0)
-                        [
-                            SNew(SBorder)
-                            .BorderImage(FAppStyle::GetBrush("ToolPanel.GroupBorder"))
-                            [
-                                SNew(SHorizontalBox)
-                                + SHorizontalBox::Slot()
-                                [
-                                    SNew(STextBlock)
-                                        .Text(FText::FromString("Viewed"))
-                                        .Font(Font)
-                                ]
-                                + SHorizontalBox::Slot()
-                                [
-                                    SNew(SCheckBox)
-                                ]
-                            ]
-
-                        ]
-                        +SHorizontalBox::Slot()
-                        .AutoWidth()
-                        .Padding(5, 0)
-                        [
-                            // cooking mode menu
-                            SNew(SComboButton)
-                                .ButtonContent()
-                                [
-                                    SNew(STextBlock)
-                                        .Text(FText::FromString("Comment"))
-                                ]
-                                .ContentPadding(FMargin(6.0, 2.0))
-                                .MenuContent()
-                                [
-                                    SNew(SFileReviewComments)
-                                    .CommitSha(Head)
-                                    .CommitFile(InItem)
-                                    .PullRequestInfo(PRInfo)
-                                ]
-                        ]
-                ]
+            SNew(SGitFileDetail)
+                .PullRequestInfo(PRInfo)
+                .CommitSha(Head)
+                .FileItem(InItem)
         ];
 }
 
+FText SGitListFileChangedWidget::GetFileNumCommentText(TSharedPtr<FCommitFile> InItem) const
+{
+    auto Comments = GetCommentForFile(InItem);
+    if (Comments.IsEmpty())
+        return {};
+	return FText::AsNumber(Comments.Num());
+}
 
 void SGitListFileChangedWidget::OnFileDoubleClicked(TSharedPtr<FCommitFile> Entry)
 {
@@ -203,6 +127,21 @@ void SGitListFileChangedWidget::OnFileDoubleClicked(TSharedPtr<FCommitFile> Entr
             }
 
         }), Entry->filename, Parent);
+}
+
+TArray<FComment> SGitListFileChangedWidget::GetCommentForFile(TSharedPtr<FCommitFile> InItem) const
+{
+    if (!PRInfo || PRInfo->AllComments.IsEmpty())
+        return {};
+    TArray<FComment> Results;
+
+    for (auto& Comment : PRInfo->AllComments)
+    {
+		if (Comment.path != InItem->filename)
+			continue;
+        Results.Add(Comment);
+    }
+    return Results;
 }
 
 

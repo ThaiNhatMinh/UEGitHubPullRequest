@@ -46,7 +46,10 @@ protected:
 
 	void OnFilterTextCommitted(const FText& InFilterText, ETextCommit::Type InCommitType);
 	TSharedRef<ITableRow> GenerateFileRowWidget(TSharedPtr<FCommitFile> InItem, const TSharedRef<class STableViewBase>& OwnerTable);
+	FText GetFileNumCommentText(TSharedPtr<FCommitFile> InItem) const;
 	void OnFileDoubleClicked(TSharedPtr<FCommitFile> Entry);
+	
+	TArray<FComment> GetCommentForFile(TSharedPtr<FCommitFile> InItem) const;
 
 protected:
 	TSharedPtr<FPullRequestInformation> PRInfo;

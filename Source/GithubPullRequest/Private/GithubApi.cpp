@@ -29,6 +29,16 @@ namespace
 		return true;
 	}
 
+	void OnError(FString Message)
+	{
+		FNotificationInfo Info(FText::FromString(Message));
+		Info.bFireAndForget = true;
+		Info.ExpireDuration = 5.0f;
+		Info.bUseThrobber = false;
+		Info.Image = FCoreStyle::Get().GetBrush(TEXT("Icons.Error"));
+		FSlateNotificationManager::Get().AddNotification(Info);
+	}
+
 	void OnError(FHttpResponsePtr Response)
 	{
 		if (Response.IsValid())
@@ -569,6 +579,7 @@ bool UGithubApi::CreateComment(FOnCreateReviewComplete OnCreateReviewComplete, i
 	Request->SetHeader(TEXT("Content-Type"), TEXT("application/json"));
 	Request->SetHeader(TEXT("User-Agent"), TEXT("X-UnrealEngine-Agent"));
 	Request->SetHeader(TEXT("Accepts"), TEXT("application/vnd.github.raw+json"));
+	Request->SetHeader(TEXT("X-GitHub-Api-Version"), TEXT("2022-11-28"));
 	Request->SetVerb("POST");
 
 	FCommentBody BodyStruct;
@@ -577,6 +588,7 @@ bool UGithubApi::CreateComment(FOnCreateReviewComplete OnCreateReviewComplete, i
 	BodyStruct.path = FilePath;
 
 	auto OutJsonObject = FJsonObjectConverter::UStructToJsonObject(BodyStruct, 0, 0);
+	//BodyStruct.subject_type = "line";
 	OutJsonObject->RemoveField(TEXT("line"));
 	FString OutputString;
 	TSharedRef< TJsonWriter<> > Writer = TJsonWriterFactory<>::Create(&OutputString);
@@ -603,11 +615,111 @@ bool UGithubApi::CreateComment(FOnCreateReviewComplete OnCreateReviewComplete, i
 	return true;
 }
 
+bool UGithubApi::ListComment(FOnListCommentAvailable OnListCommentAvailable, int PullNumber, int Page, int NumberPage)
+{
+	if (!CheckGithubToken())
+	{
+		return false;
+	}
+
+	auto Settings = GetDefault<UGithubPullRequestSettings>();
+	FHttpModule* Http = &FHttpModule::Get();
+	FHttpRequestRef Request = Http->CreateRequest();
+	auto BaseUrl = GetBaseUrl();
+	auto Url = FString::Format(TEXT("{0}/pulls/{1}/comments"), {BaseUrl, PullNumber});
+	Url += "?page=" + FString::FromInt(Page);
+	Url += "&per_page=" + FString::FromInt(NumberPage);
+
+	Request->SetURL(Url);
+	Request->SetHeader(TEXT("Authorization"), FString::Printf(TEXT("Bearer %s"), *Settings->GithubToken));
+	Request->SetHeader(TEXT("Content-Type"), TEXT("application/json"));
+	Request->SetHeader(TEXT("User-Agent"), TEXT("X-UnrealEngine-Agent"));
+	Request->SetHeader(TEXT("Accepts"), TEXT("application/vnd.github.raw+json"));
+	Request->SetVerb("GET");
+	Request->OnProcessRequestComplete().BindLambda([OnListCommentAvailable](FHttpRequestPtr InRequest, FHttpResponsePtr InResponse, bool bConnectedSuccessfully)
+		{
+			if (!InResponse.IsValid() || InResponse->GetResponseCode() != 200)
+			{
+				OnError(InResponse);
+				return;
+			}
+			auto Content = InResponse->GetContentAsString();
+			TSharedRef<TJsonReader<>> const JsonReader = TJsonReaderFactory<>::Create(Content);
+			TArray<TSharedPtr<FJsonValue>> JsonObject;
+			const TSharedPtr<FJsonObject>* ResultObject = nullptr;
+
+			if (!FJsonSerializer::Deserialize(JsonReader, JsonObject) || JsonObject.IsEmpty())
+			{
+				return;
+			}
+			TArray<FComment> Comments;
+			for (auto& Element : JsonObject)
+			{
+				FComment Info;
+				if (FJsonObjectConverter::JsonObjectToUStruct<FComment>(Element->AsObject().ToSharedRef(), &Info))
+					Comments.Add(Info);
+			}
+			OnListCommentAvailable.ExecuteIfBound(Comments, 200, TEXT(""));
+		});
+	Request->ProcessRequest();
+	return true;
+}
+
+bool UGithubApi::ListIssueComment(FOnListIssueCommentAvailable OnListCommentAvailable, int PullNumber, int Page, int NumberPage)
+{
+	if (!CheckGithubToken())
+	{
+		return false;
+	}
+
+	auto Settings = GetDefault<UGithubPullRequestSettings>();
+	FHttpModule* Http = &FHttpModule::Get();
+	FHttpRequestRef Request = Http->CreateRequest();
+	auto BaseUrl = GetBaseUrl();
+	auto Url = FString::Format(TEXT("{0}/issue/{1}/comments"), {BaseUrl, PullNumber});
+	Url += "?page=" + FString::FromInt(Page);
+	Url += "&per_page=" + FString::FromInt(NumberPage);
+
+	Request->SetURL(Url);
+	Request->SetHeader(TEXT("Authorization"), FString::Printf(TEXT("Bearer %s"), *Settings->GithubToken));
+	Request->SetHeader(TEXT("Content-Type"), TEXT("application/json"));
+	Request->SetHeader(TEXT("User-Agent"), TEXT("X-UnrealEngine-Agent"));
+	Request->SetHeader(TEXT("Accepts"), TEXT("application/vnd.github.raw+json"));
+	Request->SetVerb("GET");
+	Request->OnProcessRequestComplete().BindLambda([OnListCommentAvailable](FHttpRequestPtr InRequest, FHttpResponsePtr InResponse, bool bConnectedSuccessfully)
+		{
+			if (!InResponse.IsValid() || InResponse->GetResponseCode() != 200)
+			{
+				OnError(InResponse);
+				return;
+			}
+			auto Content = InResponse->GetContentAsString();
+			TSharedRef<TJsonReader<>> const JsonReader = TJsonReaderFactory<>::Create(Content);
+			TArray<TSharedPtr<FJsonValue>> JsonObject;
+			const TSharedPtr<FJsonObject>* ResultObject = nullptr;
+
+			if (!FJsonSerializer::Deserialize(JsonReader, JsonObject) || JsonObject.IsEmpty())
+			{
+				OnError("Parse string to json failed");
+				return;
+			}
+			TArray<FIssueComment> Comments;
+			for (auto& Element : JsonObject)
+			{
+				FIssueComment Info;
+				if (FJsonObjectConverter::JsonObjectToUStruct<FIssueComment>(Element->AsObject().ToSharedRef(), &Info))
+					Comments.Add(Info);
+			}
+			OnListCommentAvailable.ExecuteIfBound(Comments, 200, TEXT(""));
+		});
+	Request->ProcessRequest();
+	return true;
+}
+
 bool UGithubApi::ListCommit(FOnCommitListAvailable OnListCommitComplete, const FString& sha, const FString& path, const FString& author, const FString& committer, const FString& since, const FString& until, int page, int per_page)
 {
 	if (!CheckGithubToken())
 	{
-		OnListCommitComplete.ExecuteIfBound({}, 401, TEXT("GitHub token is not configured"));
 		return false;
 	}
 
