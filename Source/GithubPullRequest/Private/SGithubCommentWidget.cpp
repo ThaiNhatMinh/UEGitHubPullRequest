@@ -19,6 +19,108 @@ void SGithubCommentWidget::Construct(const FArguments& InArgs)
     FLinearColor ShadowColor = FLinearColor(0.0f, 0.0f, 0.0f, 0.5f);
     FLinearColor BackgroundColor = FLinearColor(0.05f, 0.05f, 0.05f, 1.0f);
 
+    TSharedPtr<SBorder> HeaderWidget;
+    TSharedPtr<SVerticalBox> BodyWidget;
+
+    SAssignNew(HeaderWidget, SBorder)
+        .BorderImage(FAppStyle::Get().GetBrush("ToolPanel.DarkGroupBorder"))
+        .Padding(FMargin(0, 12, 12, 12))
+        [
+            // Avatar + Name + Tag
+            SNew(SHorizontalBox)
+                +SHorizontalBox::Slot()
+                .Padding(0, 0, 4, 0)
+                .AutoWidth()
+                [
+                    SNew(SImage)
+                        .Image(this, &SGithubCommentWidget::GetAvatar)
+                ]
+                + SHorizontalBox::Slot()
+                .FillWidth(1.0f)
+                .VAlign(EVerticalAlignment::VAlign_Center)
+                [
+                    SNew(STextBlock)
+                        .Text(FText::FromString(CommentData.user.login))
+                ]
+                + SHorizontalBox::Slot()
+                .AutoWidth()
+                .VAlign(EVerticalAlignment::VAlign_Center)
+                [
+                    SNew(SBorder)
+                        .BorderImage(FCoreStyle::Get().GetBrush("WhiteBrush"))
+                        .BorderBackgroundColor(BorderColor)
+                        [
+                            SNew(STextBlock)
+                                .Text(FText::FromString(::ToString(CommentData.author_association)))
+                        ]
+                ]
+        ];
+    SAssignNew(BodyWidget, SVerticalBox)
+        // Comment text area
+        + SVerticalBox::Slot()
+        .AutoHeight()
+        .Padding(0, 12, 12, 12)
+        [
+            SNew(SScrollBox)
+                + SScrollBox::Slot()
+                [
+                    SNew(SRichTextBlock)
+                        .DecoratorStyleSet(&FAppStyle::Get())
+                        .Text(FText::FromString(CommentData.body))
+                        //.TextStyle(&FCoreStyle::Get().GetWidgetStyle<FTextBlockStyle>("Text.Large"))
+                        .TextStyle(FAppStyle::Get(), "NormalText")
+                ]
+        ]
+        // Reply comment area
+        + SVerticalBox::Slot()
+        .Padding(20, 0, 0, 0)
+        .AutoHeight()
+        [
+            SNew(SBorder)
+                .BorderImage(FAppStyle::Get().GetBrush("Brushes.Panel"))
+                .Visibility(bShowReplyInput ? EVisibility::Visible : EVisibility::Collapsed)
+                [
+                    SAssignNew(RepliesWidget, SVerticalBox)
+                ]
+        ]
+        // Reply text area
+        + SVerticalBox::Slot()
+        .Padding(16, 12)
+        .AutoHeight()
+        [
+            SNew(SHorizontalBox)
+                .Visibility(bShowReplyInput ? EVisibility::Visible : EVisibility::Collapsed)
+                + SHorizontalBox::Slot()
+                .FillWidth(1.0f)
+                .Padding(0, 0, 10, 0)
+                [
+
+                    SNew(SBorder)
+                        .BorderImage(FAppStyle::Get().GetBrush("Brushes.Panel"))
+                        [
+                            SNew(SBox)
+                                .MinDesiredHeight(30)
+                                [
+                                    SAssignNew(ReplyInputWidget, SMultiLineEditableText)
+                                        .HintText(LOCTEXT("LeaveComment", "Write a reply"))
+                                        .AutoWrapText(true)
+                                ]
+                        ]
+                ]
+                + SHorizontalBox::Slot()
+                .AutoWidth()
+                .Padding(10, 0, 0, 0)
+                [
+                    SNew(SButton)
+                        //.ButtonStyle(&FAppStyle::Get().GetWidgetStyle<FButtonStyle>("PrimaryButton"))
+                        .Text(FText::FromString("Reply"))
+                        .VAlign(EVerticalAlignment::VAlign_Center)
+                        .OnClicked(this, &SGithubCommentWidget::OnReply)
+                ]
+        ];
+    
+    TSharedPtr<SExpandableArea> ExpandableCommit;
+
 	ChildSlot
 	[
         // Shadow layer
@@ -42,107 +144,21 @@ void SGithubCommentWidget::Construct(const FArguments& InArgs)
                                 SNew(SBox)
                                     .MinDesiredWidth(380)
                                     [
-                                        SNew(SVerticalBox)
-                                            // Header
-                                            + SVerticalBox::Slot()
-                                            .AutoHeight()
-                                            [
-                                                SNew(SBorder)
-                                                    .BorderImage(FAppStyle::Get().GetBrush("ToolPanel.DarkGroupBorder"))
-                                                    .Padding(FMargin(16, 12))
-                                                    [
-                                                        // Avatar + Name + Tag
-                                                        SNew(SHorizontalBox)
-                                                        +SHorizontalBox::Slot()
-                                                        .Padding(0, 0, 4, 0)
-                                                        .AutoWidth()
-                                                        [
-                                                            SNew(SImage)
-                                                                .Image(this, &SGithubCommentWidget::GetAvatar)
-                                                        ]
-                                                        + SHorizontalBox::Slot()
-                                                        .FillWidth(1.0f)
-                                                        .VAlign(EVerticalAlignment::VAlign_Center)
-                                                        [
-                                                            SNew(STextBlock)
-                                                                .Text(FText::FromString(CommentData.user.login))
-                                                        ]
-                                                        + SHorizontalBox::Slot()
-                                                        .AutoWidth()
-                                                        .VAlign(EVerticalAlignment::VAlign_Center)
-                                                        [
-                                                            SNew(SBorder)
-                                                                .BorderImage(FCoreStyle::Get().GetBrush("WhiteBrush"))
-                                                                .BorderBackgroundColor(BorderColor)
-                                                                [
-                                                                    SNew(STextBlock)
-                                                                        .Text(FText::FromString(::ToString(CommentData.author_association)))
-                                                                ]
-                                                        ]
-                                                    ]
-                                            ]
-                                            // Comment text area
-                                            + SVerticalBox::Slot()
-                                            .AutoHeight()
-                                            .Padding(16, 12)
-                                            [
-                                                SNew(SScrollBox)
-                                                    + SScrollBox::Slot()
-                                                    [
-                                                        SNew(SRichTextBlock)
-                                                            .DecoratorStyleSet(&FAppStyle::Get())
-                                                            .Text(FText::FromString(CommentData.body))
-                                                            //.TextStyle(&FCoreStyle::Get().GetWidgetStyle<FTextBlockStyle>("Text.Large"))
-                                                            .TextStyle(FAppStyle::Get(), "NormalText")
-                                                    ]
-                                            ]
-                                            // Reply comment area
-                                            + SVerticalBox::Slot()
-                                            .Padding(20, 0, 0, 0)
-											.AutoHeight()
-                                            [
-                                                SNew(SBorder)
-                                                    .BorderImage(FAppStyle::Get().GetBrush("Brushes.Panel"))
-                                                    .Visibility(bShowReplyInput ? EVisibility::Visible : EVisibility::Collapsed)
-                                                    [
-                                                        SAssignNew(RepliesWidget, SVerticalBox)
-                                                    ]
-                                            ]
-                                            // Reply text area
-                                            + SVerticalBox::Slot()
-                                            .Padding(16, 12)
-                                            .AutoHeight()
-                                            [
-                                                SNew(SHorizontalBox)
-                                                .Visibility(bShowReplyInput ? EVisibility::Visible : EVisibility::Collapsed)
-                                                + SHorizontalBox::Slot()
-                                                .FillWidth(1.0f)
-                                                .Padding(0, 0, 10, 0)
-                                                [
-
-                                                    SNew(SBorder)
-                                                    .BorderImage(FAppStyle::Get().GetBrush("Brushes.Panel"))
-                                                    [
-                                                        SNew(SBox)
-                                                        .MinDesiredHeight(30)
-                                                        [
-                                                            SAssignNew(ReplyInputWidget, SMultiLineEditableText)
-                                                                .HintText(LOCTEXT("LeaveComment", "Write a reply"))
-                                                                .AutoWrapText(true)
-                                                        ]
-                                                    ]
-                                                ]
-                                                + SHorizontalBox::Slot()
-                                                .AutoWidth()
-                                                .Padding(10, 0, 0, 0)
-                                                [
-                                                    SNew(SButton)
-                                                    //.ButtonStyle(&FAppStyle::Get().GetWidgetStyle<FButtonStyle>("PrimaryButton"))
-                                                    .Text(FText::FromString("Reply"))
-													.VAlign(EVerticalAlignment::VAlign_Center)
-                                                    .OnClicked(this, &SGithubCommentWidget::OnReply)
-                                                ]
-                                            ]
+                                        SAssignNew(ExpandableCommit, SExpandableArea)
+                                        .InitiallyCollapsed(bShowReplyInput)
+                                        //.BorderBackgroundColor(FLinearColor(0.6f, 0.6f, 0.6f, 1.0f))
+                                        //.BodyBorderImage(FAppStyle::Get().GetBrush("ToolPanel.GroupBorder"))
+                                        //.BodyBorderBackgroundColor(FLinearColor::White)
+                                        .Padding(0.0f)
+                                        .HeaderPadding(0.0f)
+                                        .HeaderContent()
+                                        [
+                                            HeaderWidget.ToSharedRef()
+                                        ]
+                                        .BodyContent()
+                                        [
+                                            BodyWidget.ToSharedRef()
+                                        ]
                                     ]
                             ]
                     ]
