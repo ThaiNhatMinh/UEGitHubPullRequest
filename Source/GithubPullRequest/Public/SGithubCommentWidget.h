@@ -15,6 +15,7 @@ class GITHUBPULLREQUEST_API SGithubCommentWidget : public SCompoundWidget
 public:
 	SLATE_BEGIN_ARGS(SGithubCommentWidget)
 	{}
+		SLATE_ARGUMENT(TSharedPtr<FPullRequestInformation>, PullRequestInfo)
 		SLATE_ARGUMENT(FComment, CommentData)
 		SLATE_ARGUMENT(bool, ShowReplyInput)
 	SLATE_END_ARGS()
@@ -22,14 +23,15 @@ public:
 	/** Constructs this widget with InArgs */
 	void Construct(const FArguments& InArgs);
 
-	FReply OnReply();
 
 	void SetReply(const TArray<FComment>& ReplyComments);
 
 protected:
+	FReply OnReply();
 	const FSlateBrush* GetAvatar() const;
 
 protected:
+	TSharedPtr<FPullRequestInformation> PRInfo;
 	bool bShowReplyInput = true;
 	FComment CommentData;
 	TSharedPtr<struct FSlateDynamicImageBrush> Avatar;

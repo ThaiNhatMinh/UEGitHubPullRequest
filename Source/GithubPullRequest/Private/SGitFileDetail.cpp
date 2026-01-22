@@ -147,16 +147,13 @@ void SGitFileDetail::Construct(const FArguments& InArgs)
 
     UpdateCommentForFile();
 
-    if (FileItem->AllComments.IsEmpty())
-    {
-        PRInfo->OnCommentAvailable.AddLambda([WeakThis = AsWeak()]()
+    PRInfo->OnCommentAvailable.AddLambda([WeakThis = AsWeak()]()
+        {
+            if (auto FileDetail = StaticCastWeakPtr<SGitFileDetail>(WeakThis).Pin())
             {
-                if (auto FileDetail = StaticCastWeakPtr<SGitFileDetail>(WeakThis).Pin())
-                {
-                    FileDetail->UpdateCommentForFile();
-                }
-            });
-    }
+                FileDetail->UpdateCommentForFile();
+            }
+        });
 }
 END_SLATE_FUNCTION_BUILD_OPTIMIZATION
 
@@ -187,6 +184,9 @@ void SGitFileDetail::UpdateCommentForFile()
     FileItem->AllComments = Results;
     if (!FileDetail)
         return;
+
+    FileDetail->ClearChildren();
+
     TMap<uint64, TArray<FComment>> ReplyComments;
 	TMap<uint64, TSharedPtr<SGithubCommentWidget>> CommentWidgets;
 
@@ -204,6 +204,7 @@ void SGitFileDetail::UpdateCommentForFile()
 		.AutoHeight()
         [
 			SAssignNew(CommentWidget, SGithubCommentWidget)
+                .PullRequestInfo(PRInfo)
 				.CommentData(Comment)
 				.ShowReplyInput(true)
         ];

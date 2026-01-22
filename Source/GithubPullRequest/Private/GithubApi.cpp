@@ -53,9 +53,9 @@ namespace
 			FString Message;
 			for (auto& error : Error.errors)
 			{
-				Message += "\n" + error;
+				Message += "\\n" + error;
 			}
-			Message += "\n" + Error.documentation_url;
+			Message += "\\n" + Error.documentation_url;
 			Info.SubText = FText::FromString(Message);
 			Info.bFireAndForget = true;
 			Info.ExpireDuration = 5.0f;
@@ -561,7 +561,7 @@ bool UGithubApi::CreateReview(FOnCreateReviewComplete OnCreateReviewComplete, in
 	return true;
 }
 
-bool UGithubApi::CreateComment(FOnCreateReviewComplete OnCreateReviewComplete, int PullNumber, const FString& Body, const FString& CommitId, const FString& FilePath)
+bool UGithubApi::CreateComment(FOnCreateReviewComplete OnCreateReviewComplete, int PullNumber, const FString& Body, const FString& CommitId, const FString& FilePath, uint64 ReplyToId)
 {
 	if (!CheckGithubToken())
 	{
@@ -586,10 +586,22 @@ bool UGithubApi::CreateComment(FOnCreateReviewComplete OnCreateReviewComplete, i
 	BodyStruct.commit_id = CommitId;
 	BodyStruct.body = Body;
 	BodyStruct.path = FilePath;
+	BodyStruct.in_reply_to = ReplyToId;
 
 	auto OutJsonObject = FJsonObjectConverter::UStructToJsonObject(BodyStruct, 0, 0);
 	//BodyStruct.subject_type = "line";
 	OutJsonObject->RemoveField(TEXT("line"));
+	if (ReplyToId == 0)
+	{
+		OutJsonObject->RemoveField(TEXT("in_reply_to"));
+	}
+	else
+	{
+		OutJsonObject->RemoveField(TEXT("position"));
+		OutJsonObject->RemoveField(TEXT("subject_type"));
+
+	}
+
 	FString OutputString;
 	TSharedRef< TJsonWriter<> > Writer = TJsonWriterFactory<>::Create(&OutputString);
 	FJsonSerializer::Serialize(OutJsonObject.ToSharedRef(), Writer);

@@ -43,6 +43,7 @@ public:
     TSharedRef<SWidget> MakeReviewChanges();
 
     void UpdateState();
+    void UpdateComment();
 
 protected:
     TSharedPtr<FPullRequestInformation>  PullRequestData;

@@ -4,6 +4,9 @@
 #include "SGithubCommentWidget.h"
 #include "Widgets/Text/SRichTextBlock.h"
 
+#include "Framework/Notifications/NotificationManager.h"
+#include "Widgets/Notifications/SNotificationList.h"
+
 #include "SlateOptMacros.h"
 
 #define LOCTEXT_NAMESPACE "SGithubCommentWidget"
@@ -13,6 +16,7 @@ void SGithubCommentWidget::Construct(const FArguments& InArgs)
 {
 	CommentData = InArgs._CommentData;
     bShowReplyInput = InArgs._ShowReplyInput;
+    PRInfo = InArgs._PullRequestInfo;
 
     // Border color
     FLinearColor BorderColor = FLinearColor(0.3f, 0.3f, 0.3f, 1.0f);
@@ -146,9 +150,6 @@ void SGithubCommentWidget::Construct(const FArguments& InArgs)
                                     [
                                         SAssignNew(ExpandableCommit, SExpandableArea)
                                         .InitiallyCollapsed(bShowReplyInput)
-                                        //.BorderBackgroundColor(FLinearColor(0.6f, 0.6f, 0.6f, 1.0f))
-                                        //.BodyBorderImage(FAppStyle::Get().GetBrush("ToolPanel.GroupBorder"))
-                                        //.BodyBorderBackgroundColor(FLinearColor::White)
                                         .Padding(0.0f)
                                         .HeaderPadding(0.0f)
                                         .HeaderContent()
@@ -180,6 +181,35 @@ void SGithubCommentWidget::Construct(const FArguments& InArgs)
 
 FReply SGithubCommentWidget::OnReply()
 {
+    if (!bShowReplyInput)
+        return FReply::Handled();
+
+	auto ReplyText = ReplyInputWidget->GetText().ToString();
+    if (ReplyText.IsEmpty())
+    {
+		FNotificationInfo Info(FText::FromString(TEXT("Reply can not empty")));
+		Info.bFireAndForget = true;
+		Info.ExpireDuration = 5.0f;
+		Info.Image = FCoreStyle::Get().GetBrush(TEXT("Icons.Warning"));
+		FSlateNotificationManager::Get().AddNotification(Info);
+		return FReply::Handled();
+    }
+
+	UGithubApi::CreateComment(FOnCreateReviewComplete::CreateLambda([SharedThis = AsWeak()](int Code, const FString& Content)
+		{
+			FNotificationInfo Info(FText::FromString(TEXT("Reply comment success")));
+            Info.ExpireDuration = 5.0f;
+            Info.ExpireDuration = 5.0f;
+            Info.Image = FCoreStyle::Get().GetBrush(TEXT("Icons.Success"));
+            FSlateNotificationManager::Get().AddNotification(Info);
+			if (auto CommentWidget = StaticCastWeakPtr<SGithubCommentWidget>(SharedThis).Pin())
+			{
+				CommentWidget->ReplyInputWidget->SetText(FText::GetEmpty());
+                CommentWidget->PRInfo->OnCommentShouldUpdate.ExecuteIfBound();
+			}
+        }), 
+        PRInfo->number, ReplyText, CommentData.commit_id, CommentData.path, CommentData.id);
+
 	return FReply::Handled();
 }
 
@@ -194,6 +224,7 @@ void SGithubCommentWidget::SetReply(const TArray<FComment>& ReplyComments)
         .AutoHeight()
         [
             SNew(SGithubCommentWidget)
+			.PullRequestInfo(PRInfo)
             .CommentData(Reply)
             .ShowReplyInput(false)
         ];

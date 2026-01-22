@@ -249,20 +249,15 @@ void SPullRequestEditor::Construct(const FArguments& InArgs, const TSharedRef<SD
         ];
 
     UpdateState();
-    UGithubApi::ListComment(FOnListCommentAvailable::CreateLambda([WeakThis = AsWeak()](const TArray<FComment>& ListComment, int Code, const FString& Content)
+    UpdateComment();
+
+    PullRequestData->OnCommentShouldUpdate.BindLambda([WeakThis = AsWeak()]()
+    {
+        if (auto PullRequestEditor = StaticCastWeakPtr<SPullRequestEditor>(WeakThis).Pin())
         {
-            if (ListComment.IsEmpty())
-                return;
-
-            if (auto PullRequestEditor = StaticCastWeakPtr<SPullRequestEditor>(WeakThis).Pin())
-            {
-				PullRequestEditor->PullRequestData->AllComments = ListComment;
-                PullRequestEditor->PullRequestData->OnCommentAvailable.Broadcast();
-            }
-
-            // TODO: Query next page
-        }), PullRequestData->number);
-
+            PullRequestEditor->UpdateComment();
+        }
+    });
 
     UGithubApi::ListIssueComment(FOnListIssueCommentAvailable::CreateLambda([WeakThis = AsWeak()](const TArray<FIssueComment>& ListComment, int Code, const FString& Content)
         {
@@ -331,6 +326,23 @@ void SPullRequestEditor::UpdateState()
 
     Status->SetBorderBackgroundColor(StateColor);
     StatusText->SetText(FText::FromString(StateText));
+}
+
+void SPullRequestEditor::UpdateComment()
+{
+    UGithubApi::ListComment(FOnListCommentAvailable::CreateLambda([WeakThis = AsWeak()](const TArray<FComment>& ListComment, int Code, const FString& Content)
+        {
+            if (ListComment.IsEmpty())
+                return;
+
+            if (auto PullRequestEditor = StaticCastWeakPtr<SPullRequestEditor>(WeakThis).Pin())
+            {
+                PullRequestEditor->PullRequestData->AllComments = ListComment;
+                PullRequestEditor->PullRequestData->OnCommentAvailable.Broadcast();
+            }
+
+            // TODO: Query next page
+        }), PullRequestData->number);
 }
 
 void SPullRequestEditor::Refresh()
@@ -460,7 +472,11 @@ TSharedRef<SDockTab> SPullRequestEditor::CreateListfilesTab(const FSpawnTabArgs&
         .TabRole(ETabRole::PanelTab)
         .Label_Lambda([this](){return FText::FromString(FString::Printf(TEXT("Files changed (%d)"), ListFileWidget->GetTotalFile()));})
         [
-            ListFileWidget.ToSharedRef()
+            SNew(SScrollBox)
+            + SScrollBox::Slot()
+            [
+                ListFileWidget.ToSharedRef()
+            ]
         ];
 
     int Page = 1;

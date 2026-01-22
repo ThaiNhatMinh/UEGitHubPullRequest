@@ -168,6 +168,7 @@ struct FPullRequestInformation
 
 	TArray<FComment> AllComments;
 	FSimpleMulticastDelegate OnCommentAvailable;
+	FSimpleDelegate OnCommentShouldUpdate;
 };
 
 USTRUCT()
@@ -232,7 +233,7 @@ struct FCommentBody
 	int line = 1;
 
 	UPROPERTY()
-	FString in_reply_to;
+	uint64 in_reply_to = 0;
 
 	UPROPERTY()
 	FString start_side = "RIGHT";
@@ -588,7 +589,7 @@ public:
 	/*
 	* https://docs.github.com/en/rest/pulls/comments?apiVersion=2022-11-28#create-a-review-comment-for-a-pull-request
 	*/
-	static bool CreateComment(FOnCreateReviewComplete OnCreateReviewComplete, int PullNumber, const FString& Body, const FString& CommitId, const FString& FilePath);
+	static bool CreateComment(FOnCreateReviewComplete OnCreateReviewComplete, int PullNumber, const FString& Body, const FString& CommitId, const FString& FilePath, uint64 ReplyToId = 0);
 
 
 	/*
