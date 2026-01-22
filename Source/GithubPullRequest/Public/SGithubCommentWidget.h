@@ -22,6 +22,8 @@ public:
 	/** Constructs this widget with InArgs */
 	void Construct(const FArguments& InArgs);
 
+	FReply OnReply();
+
 	void SetReply(const TArray<FComment>& ReplyComments);
 
 protected:

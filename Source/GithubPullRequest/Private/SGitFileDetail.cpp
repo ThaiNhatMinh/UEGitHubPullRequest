@@ -128,6 +128,7 @@ void SGitFileDetail::Construct(const FArguments& InArgs)
         .BodyBorderImage(FAppStyle::Get().GetBrush("ToolPanel.GroupBorder"))
         .BodyBorderBackgroundColor(FLinearColor::White)
         .Padding(0.0f)
+        .HeaderPadding(0.0f)
         .HeaderContent()
         [
             FileHeader.ToSharedRef()
@@ -186,11 +187,13 @@ void SGitFileDetail::UpdateCommentForFile()
     FileItem->AllComments = Results;
     if (!FileDetail)
         return;
-    TMap<int64, TArray<FComment>> ReplyComments;
-	TMap<int64, TSharedPtr<SGithubCommentWidget>> CommentWidgets;
+    TMap<uint64, TArray<FComment>> ReplyComments;
+	TMap<uint64, TSharedPtr<SGithubCommentWidget>> CommentWidgets;
 
     for (auto& Comment : FileItem->AllComments)
     {
+		//UE_LOG(LogTemp, Log, TEXT("Comment ID: %d, InReplyToID: %d: body=%s"), Comment.id, Comment.in_reply_to_id, *Comment.body);
+
 		if (Comment.in_reply_to_id != 0)
 		{
 			ReplyComments.FindOrAdd(Comment.in_reply_to_id).Add(Comment);
@@ -202,6 +205,7 @@ void SGitFileDetail::UpdateCommentForFile()
         [
 			SAssignNew(CommentWidget, SGithubCommentWidget)
 				.CommentData(Comment)
+				.ShowReplyInput(true)
         ];
 		CommentWidgets.Add(Comment.id, CommentWidget);
     }

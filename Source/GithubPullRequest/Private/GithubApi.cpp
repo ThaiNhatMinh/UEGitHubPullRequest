@@ -885,3 +885,29 @@ bool UGithubApi::GetCommitDetails(FOnCommitDetailsAvailable OnCommitDetailsAvail
 	Request->ProcessRequest();
 	return true;
 }
+
+FString ToString(EGitAuthorAssociation AuthorAssociation)
+{
+	switch (AuthorAssociation)
+	{
+	case EGitAuthorAssociation::COLLABORATOR:
+		return "Collaborator";
+	case EGitAuthorAssociation::CONTRIBUTOR:
+		return "Contributor";
+	case EGitAuthorAssociation::FIRST_TIMER:
+		return "First Timer";
+	case EGitAuthorAssociation::FIRST_TIME_CONTRIBUTOR:
+		return "First Time Contributor";
+	case EGitAuthorAssociation::MANNEQUIN:
+		return "Mannequin";
+	case EGitAuthorAssociation::MEMBER:
+		return "Member";
+	case EGitAuthorAssociation::NONE:
+		return "";
+	case EGitAuthorAssociation::OWNER:
+		return "Author";
+	default:
+		break;
+	}
+	return "";
+}

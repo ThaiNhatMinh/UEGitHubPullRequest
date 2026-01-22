@@ -13,6 +13,23 @@ enum class EPullRequestQueryState : uint8
 	Closed UMETA(DisplayName="closed"),
 	All UMETA(DisplayName="all"),
 };
+
+
+UENUM()
+enum class EGitAuthorAssociation : uint8
+{
+	COLLABORATOR,
+	CONTRIBUTOR,
+	FIRST_TIMER,
+	FIRST_TIME_CONTRIBUTOR,
+	MANNEQUIN,
+	MEMBER,
+	NONE,
+	OWNER
+};
+
+FString ToString(EGitAuthorAssociation AuthorAssociation);
+
 ENUM_RANGE_BY_FIRST_AND_LAST(EPullRequestQueryState, EPullRequestQueryState::Open, EPullRequestQueryState::All);
 
 USTRUCT()
@@ -426,7 +443,7 @@ struct FIssueComment
 	GENERATED_BODY();
 
 	UPROPERTY()
-	int id;
+	int id = 0;
 
 	UPROPERTY()
 	FString node_id;
@@ -468,7 +485,7 @@ struct FComment
 	int64 pull_request_review_id;
 
 	UPROPERTY()
-	int64 id;
+	uint64 id;
 
 	UPROPERTY()
 	FString node_id;
@@ -480,10 +497,10 @@ struct FComment
 	FString path;
 
 	UPROPERTY()
-	int position;
+	int position = -1;
 
 	UPROPERTY()
-	int original_position;
+	int original_position = -1;
 
 	UPROPERTY()
 	FString commit_id;
@@ -492,7 +509,7 @@ struct FComment
 	FString original_commit_id;
 
 	UPROPERTY()
-	int64 in_reply_to_id;
+	uint64 in_reply_to_id = 0;
 	
 	UPROPERTY()
 	FCommitUserDetail user;
@@ -513,7 +530,7 @@ struct FComment
 	FString pull_request_url;
 
 	UPROPERTY()
-	FString author_association;
+	EGitAuthorAssociation author_association;
 
 	UPROPERTY()
 	int start_line = 0;

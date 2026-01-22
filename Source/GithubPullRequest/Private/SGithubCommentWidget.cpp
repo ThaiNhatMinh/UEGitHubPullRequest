@@ -67,6 +67,18 @@ void SGithubCommentWidget::Construct(const FArguments& InArgs)
                                                             SNew(STextBlock)
                                                                 .Text(FText::FromString(CommentData.user.login))
                                                         ]
+                                                        + SHorizontalBox::Slot()
+                                                        .AutoWidth()
+                                                        .VAlign(EVerticalAlignment::VAlign_Center)
+                                                        [
+                                                            SNew(SBorder)
+                                                                .BorderImage(FCoreStyle::Get().GetBrush("WhiteBrush"))
+                                                                .BorderBackgroundColor(BorderColor)
+                                                                [
+                                                                    SNew(STextBlock)
+                                                                        .Text(FText::FromString(::ToString(CommentData.author_association)))
+                                                                ]
+                                                        ]
                                                     ]
                                             ]
                                             // Comment text area
@@ -86,10 +98,12 @@ void SGithubCommentWidget::Construct(const FArguments& InArgs)
                                             ]
                                             // Reply comment area
                                             + SVerticalBox::Slot()
+                                            .Padding(20, 0, 0, 0)
 											.AutoHeight()
                                             [
                                                 SNew(SBorder)
                                                     .BorderImage(FAppStyle::Get().GetBrush("Brushes.Panel"))
+                                                    .Visibility(bShowReplyInput ? EVisibility::Visible : EVisibility::Collapsed)
                                                     [
                                                         SAssignNew(RepliesWidget, SVerticalBox)
                                                     ]
@@ -99,17 +113,34 @@ void SGithubCommentWidget::Construct(const FArguments& InArgs)
                                             .Padding(16, 12)
                                             .AutoHeight()
                                             [
-                                                SNew(SBorder)
-                                                .BorderImage(FAppStyle::Get().GetBrush("Brushes.Panel"))
-												.Visibility(bShowReplyInput ? EVisibility::Visible : EVisibility::Collapsed)
+                                                SNew(SHorizontalBox)
+                                                .Visibility(bShowReplyInput ? EVisibility::Visible : EVisibility::Collapsed)
+                                                + SHorizontalBox::Slot()
+                                                .FillWidth(1.0f)
+                                                .Padding(0, 0, 10, 0)
                                                 [
-                                                    SNew(SBox)
-                                                    .MinDesiredHeight(30)
+
+                                                    SNew(SBorder)
+                                                    .BorderImage(FAppStyle::Get().GetBrush("Brushes.Panel"))
                                                     [
-                                                        SAssignNew(ReplyInputWidget, SMultiLineEditableText)
-                                                        .HintText(LOCTEXT("LeaveComment", "Write a reply"))
-                                                        .AutoWrapText(true)
+                                                        SNew(SBox)
+                                                        .MinDesiredHeight(30)
+                                                        [
+                                                            SAssignNew(ReplyInputWidget, SMultiLineEditableText)
+                                                                .HintText(LOCTEXT("LeaveComment", "Write a reply"))
+                                                                .AutoWrapText(true)
+                                                        ]
                                                     ]
+                                                ]
+                                                + SHorizontalBox::Slot()
+                                                .AutoWidth()
+                                                .Padding(10, 0, 0, 0)
+                                                [
+                                                    SNew(SButton)
+                                                    //.ButtonStyle(&FAppStyle::Get().GetWidgetStyle<FButtonStyle>("PrimaryButton"))
+                                                    .Text(FText::FromString("Reply"))
+													.VAlign(EVerticalAlignment::VAlign_Center)
+                                                    .OnClicked(this, &SGithubCommentWidget::OnReply)
                                                 ]
                                             ]
                                     ]
@@ -117,7 +148,7 @@ void SGithubCommentWidget::Construct(const FArguments& InArgs)
                     ]
             ]
 	];
-
+    //
     UGithubApi::DownloadAvatar(FOnFileDownloadComplete::CreateLambda([WeakThis = AsWeak()](const FString& GamePath, int Code, const FString& InContent)
         {
             if (GamePath.IsEmpty())
@@ -129,6 +160,11 @@ void SGithubCommentWidget::Construct(const FArguments& InArgs)
             
         }),
         CommentData.user.avatar_url, FString::Printf(TEXT("%d.png"), CommentData.user.id));
+}
+
+FReply SGithubCommentWidget::OnReply()
+{
+	return FReply::Handled();
 }
 
 void SGithubCommentWidget::SetReply(const TArray<FComment>& ReplyComments)
