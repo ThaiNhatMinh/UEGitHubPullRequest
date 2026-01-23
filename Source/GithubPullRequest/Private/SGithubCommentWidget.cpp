@@ -63,7 +63,7 @@ void SGithubCommentWidget::Construct(const FArguments& InArgs)
         // Comment text area
         + SVerticalBox::Slot()
         .AutoHeight()
-        .Padding(0, 12, 12, 12)
+        .Padding(12, 12, 12, 12)
         [
             SNew(SScrollBox)
                 + SScrollBox::Slot()
